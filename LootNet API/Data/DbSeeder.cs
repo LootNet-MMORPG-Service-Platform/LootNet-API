@@ -2,7 +2,7 @@
 using LootNet_API.Enums;
 using LootNet_API.Models;
 using LootNet_API.Models.Items;
-using LootNet_API.Services;
+using LootNet_API.Services.Interfaces;
 
 public static class DbSeeder
 {
@@ -88,7 +88,8 @@ public static class DbSeeder
                 PasswordHash = "hashedpassword",
                 Role = UserRole.Player,
                 ProfileId = profile.Id,
-                Currency = 1000
+                Currency = 1000,
+                Equipment = new Equipment()
             };
             users.Add(user);
         }

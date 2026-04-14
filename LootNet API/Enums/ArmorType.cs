@@ -2,8 +2,9 @@
 
 public enum ArmorType
 {
-    Helmet,
-    Chest,
+    Head,
+    Body,
     Gloves,
+    Legs,
     Boots
 }

@@ -1,4 +1,5 @@
 ﻿namespace LootNet_API.Models;
+
 using Enums;
 using LootNet_API.Models.Items;
 
@@ -13,4 +14,8 @@ public class User
     public GenerationProfile? Profile { get; set; }
     public DateTime? LastDailyReward { get; set; }
     public decimal Currency { get; set; }
+    public required Equipment Equipment { get; set; }
+    public bool IsBlocked { get; set; }
+    public DateTime? BlockedUntil { get; set; }
+    public string? BlockReason { get; set; }
 }

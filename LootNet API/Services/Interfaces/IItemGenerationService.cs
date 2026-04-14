@@ -1,6 +1,6 @@
 ﻿using LootNet_API.Models.Items;
 
-namespace LootNet_API.Services;
+namespace LootNet_API.Services.Interfaces;
 
 public interface IItemGenerationService
 {

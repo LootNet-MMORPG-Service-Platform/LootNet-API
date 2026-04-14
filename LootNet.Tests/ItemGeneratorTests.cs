@@ -1,4 +1,6 @@
-﻿using LootNet_API.Data;
+﻿namespace LootNet_API.Tests;
+
+using LootNet_API.Data;
 using LootNet_API.Enums;
 using LootNet_API.Models;
 using LootNet_API.Models.Items;
@@ -6,6 +8,7 @@ using LootNet_API.Services;
 using Microsoft.EntityFrameworkCore;
 using LootNet_API.Tests.Helpers;
 using Xunit;
+using LootNet_API.Services.Interfaces;
 
 public class ItemGeneratorTests
 {
@@ -68,6 +71,7 @@ public class ItemGeneratorTests
             Username = "player1",
             PasswordHash = "hash",
             Role = UserRole.Player,
+            Equipment = new Equipment(),
             ProfileId = profile.Id,
             Profile = profile
         };
@@ -128,6 +132,7 @@ public class ItemGeneratorTests
             Id = Guid.NewGuid(),
             Username = "player2",
             PasswordHash = "hash",
+            Equipment = new Equipment(),
             Role = UserRole.Player,
             ProfileId = profile.Id,
             Profile = profile
@@ -152,7 +157,9 @@ public class ItemGeneratorTests
     {
         var db = TestDbContextFactory.Create();
         var profile = new GenerationProfile { Id = Guid.NewGuid(), Name = "EmptyWeights" };
-        var user = new User { Id = Guid.NewGuid(), Username = "p", PasswordHash = "h", Role = UserRole.Player, ProfileId = profile.Id, Profile = profile };
+        var user = new User { Id = Guid.NewGuid(), Username = "p", PasswordHash = "h", 
+            Role = UserRole.Player, ProfileId = profile.Id, Profile = profile, Equipment = new Equipment()
+        };
         db.Users.Add(user);
         db.GenerationProfiles.Add(profile);
         await db.SaveChangesAsync();
@@ -177,7 +184,9 @@ public class ItemGeneratorTests
             }
         };
 
-        var user = new User { Id = Guid.NewGuid(), Username = "p", PasswordHash = "h", Role = UserRole.Player, ProfileId = profile.Id, Profile = profile };
+        var user = new User { Id = Guid.NewGuid(), Username = "p", PasswordHash = "h",
+            Role = UserRole.Player, ProfileId = profile.Id, Profile = profile, Equipment = new Equipment()
+        };
 
         db.Users.Add(user);
         db.GenerationProfiles.Add(profile);
@@ -207,7 +216,7 @@ public class ItemGeneratorTests
         {
             Id = Guid.NewGuid(),
             Category = ItemCategory.Armor,
-            ArmorType = ArmorType.Chest,
+            ArmorType = ArmorType.Body,
             Parameters = new List<ItemParameterSetting>
             {
                 new()
@@ -229,7 +238,9 @@ public class ItemGeneratorTests
         };
 
         profile.Rules.Add(rule);
-        var user = new User { Id = Guid.NewGuid(), Username = "p3", PasswordHash = "h", Role = UserRole.Player, ProfileId = profile.Id, Profile = profile };
+        var user = new User { Id = Guid.NewGuid(), Username = "p3", PasswordHash = "h",
+            Role = UserRole.Player, ProfileId = profile.Id, Profile = profile, Equipment = new Equipment()
+        };
 
         db.Users.Add(user);
         db.GenerationProfiles.Add(profile);
@@ -241,7 +252,7 @@ public class ItemGeneratorTests
         var item = await generator.GenerateItemAsync(user.Id) as Armor;
 
         Assert.NotNull(item);
-        Assert.Equal(ArmorType.Chest, item.ArmorType);
+        Assert.Equal(ArmorType.Body, item.ArmorType);
         Assert.InRange(item.BluntResistance, 5, 10);
         Assert.Single(item.Elements);
         Assert.InRange(item.Elements.First().Value, 2, 4);
@@ -288,7 +299,9 @@ public class ItemGeneratorTests
         profile.Rules.Add(weaponRule);
         profile.Rules.Add(armorRule);
 
-        var user = new User { Id = Guid.NewGuid(), Username = "p4", PasswordHash = "h", Role = UserRole.Player, ProfileId = profile.Id, Profile = profile };
+        var user = new User { Id = Guid.NewGuid(), Username = "p4", PasswordHash = "h", 
+            Role = UserRole.Player, ProfileId = profile.Id, Profile = profile, Equipment = new Equipment()
+        };
 
         db.Users.Add(user);
         db.GenerationProfiles.Add(profile);

@@ -2,7 +2,9 @@
 {
     public enum UserRole
     {
+        SuperAdmin,
         Admin,
+        GameModerator,
         Player
     }
 }

@@ -1,6 +1,6 @@
 ﻿using LootNet_API.Enums;
 
-namespace LootNet_API.Services;
+namespace LootNet_API.Services.Interfaces;
 
 public interface IItemNameGenerator
 {

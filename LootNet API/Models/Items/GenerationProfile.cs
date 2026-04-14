@@ -4,7 +4,7 @@ public class GenerationProfile
 {
     public Guid Id { get; set; }
 
-    public string Name { get; set; }
+    public required string Name { get; set; }
 
     public List<ItemGenerationRule> Rules { get; set; } = new();
 

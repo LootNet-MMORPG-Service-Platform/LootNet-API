@@ -5,7 +5,7 @@ using System.Text;
 using Data;
 using DTO;
 using Enums;
-using LootNet_API.Services;
+using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -41,7 +41,7 @@ public class AuthController : ControllerBase
             Username = dto.Username,
             PasswordHash = hash,
             Role = UserRole.Player,
-            Currency = 1000
+            Equipment = new Equipment()
         };
 
         _context.Users.Add(user);
@@ -121,26 +121,6 @@ public class AuthController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok("Password changed");
-    }
-
-    [HttpGet("me")]
-    [Authorize]
-    public IActionResult Me()
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        var user = _context.Users.FirstOrDefault(u => u.Id.ToString() == userId);
-
-        if (user == null)
-            return NotFound();
-
-        return Ok(new UserProfileDTO
-        {
-            Id = user.Id,
-            Username = user.Username,
-            Role = user.Role,
-            Currency = user.Currency
-        });
     }
 }
 

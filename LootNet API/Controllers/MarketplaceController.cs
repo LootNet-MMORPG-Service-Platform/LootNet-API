@@ -2,7 +2,7 @@
 using LootNet_API.Enums;
 using LootNet_API.Extensions;
 using LootNet_API.Models;
-using LootNet_API.Services;
+using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,15 +18,18 @@ public class MarketplaceController : Controller
         _marketplaceService = marketplaceService;
     }
 
-    [HttpGet("listing")]
-    public async Task<IActionResult> GetMarket(
-        [FromQuery] ItemCategory? category,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 20,
-        [FromQuery] string sort = "asc")
+    [HttpPost("listing/weapons")]
+    public async Task<IActionResult> GetWeapons([FromBody] WeaponQueryDTO query)
     {
-        var listings = await _marketplaceService.GetListingsAsync(category, pageNumber, pageSize, sort);
-        return Ok(listings);
+        var result = await _marketplaceService.GetWeaponsAsync(query);
+        return Ok(result);
+    }
+
+    [HttpPost("listing/armors")]
+    public async Task<IActionResult> GetArmors([FromBody] ArmorQueryDTO query)
+    {
+        var result = await _marketplaceService.GetArmorsAsync(query);
+        return Ok(result);
     }
 
     [HttpPost("sell")]

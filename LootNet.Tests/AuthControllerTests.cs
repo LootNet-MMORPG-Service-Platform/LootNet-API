@@ -1,4 +1,6 @@
-﻿using System;
+﻿namespace LootNet_API.Tests;
+
+using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -56,7 +58,7 @@ public class AuthControllerTests
     [Fact]
     public async Task Register_Fails_WhenUserExists()
     {
-        _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = "hash" });
+        _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = "hash", Equipment = new Equipment() });
         await _db.SaveChangesAsync();
 
         var dto = new RegisterDTO { Username = "player1", Password = "password" };
@@ -70,7 +72,7 @@ public class AuthControllerTests
     public async Task Login_ReturnsTokens_WhenValid()
     {
         var hash = BCrypt.Net.BCrypt.HashPassword("password");
-        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = hash, Role = UserRole.Player };
+        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = hash, Role = UserRole.Player, Equipment = new Equipment() };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -87,7 +89,7 @@ public class AuthControllerTests
     public void Login_Fails_WhenWrongPassword()
     {
         var hash = BCrypt.Net.BCrypt.HashPassword("password");
-        _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = hash, Role = UserRole.Player });
+        _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = hash, Role = UserRole.Player, Equipment = new Equipment() });
         _db.SaveChanges();
 
         var dto = new LoginDTO { Username = "player1", Password = "wrong" };
@@ -99,7 +101,7 @@ public class AuthControllerTests
     [Fact]
     public async Task Refresh_ReturnsNewTokens_WhenValid()
     {
-        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = "hash", Role = UserRole.Player };
+        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = "hash", Role = UserRole.Player, Equipment = new Equipment() };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -125,7 +127,7 @@ public class AuthControllerTests
     [Fact]
     public async Task Logout_RevokesRefreshToken()
     {
-        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = "hash", Role = UserRole.Player };
+        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = "hash", Role = UserRole.Player, Equipment = new Equipment() };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -142,7 +144,8 @@ public class AuthControllerTests
     [Fact]
     public async Task ResetPassword_Succeeds_WhenOldPasswordCorrect()
     {
-        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldpass") };
+        var user = new User { Id = Guid.NewGuid(), Username = "player1",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldpass"), Equipment = new Equipment() };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -162,7 +165,8 @@ public class AuthControllerTests
     [Fact]
     public async Task ResetPassword_Fails_WhenOldPasswordWrong()
     {
-        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldpass") };
+        var user = new User { Id = Guid.NewGuid(), Username = "player1",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldpass"), Equipment = new Equipment() };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -174,33 +178,5 @@ public class AuthControllerTests
         var result = await _controller.ResetPassword(dto);
         var bad = Assert.IsType<BadRequestObjectResult>(result);
         Assert.Equal("Wrong password", bad.Value);
-    }
-
-    [Fact]
-    public async Task Me_ReturnsUserProfile_WhenAuthorized()
-    {
-        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash="password", Role = UserRole.Player, Currency = 100 };
-        _db.Users.Add(user);
-        await _db.SaveChangesAsync();
-
-        var claims = new ClaimsPrincipal(new ClaimsIdentity(new Claim[] { new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()) }));
-        _controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = claims } };
-
-        var result = _controller.Me();
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var obj = Assert.IsType<UserProfileDTO>(ok.Value);
-
-        Assert.Equal(user.Id, obj.Id);
-        Assert.Equal(user.Username, obj.Username);
-        Assert.Equal(user.Role, obj.Role);
-        Assert.Equal(user.Currency, obj.Currency);
-    }
-
-    [Fact]
-    public void Me_Fails_WhenUnauthorized()
-    {
-        _controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() } };
-        var result = _controller.Me();
-        Assert.IsType<NotFoundResult>(result);
     }
 }

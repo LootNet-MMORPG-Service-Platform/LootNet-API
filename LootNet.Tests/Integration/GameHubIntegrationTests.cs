@@ -1,11 +1,11 @@
 ﻿using LootNet_API.Data;
 using LootNet_API.Enums;
-using LootNet_API.Services;
 using LootNet_API.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using LootNet_API.Services.Interfaces;
 
 namespace LootNet_API.Tests.Integration;
 public class GameHubIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
@@ -51,7 +51,8 @@ public class GameHubIntegrationTests : IClassFixture<WebApplicationFactory<Progr
                 Username = "testuser",
                 PasswordHash = "fakehash",
                 Role = UserRole.Player,
-                Currency = 1000
+                Currency = 1000,
+                Equipment = new Equipment()
             };
 
             db.Users.Add(user);

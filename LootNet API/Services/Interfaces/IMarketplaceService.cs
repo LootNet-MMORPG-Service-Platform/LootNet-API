@@ -2,11 +2,12 @@
 using LootNet_API.Enums;
 using LootNet_API.Models.Market;
 
-namespace LootNet_API.Services;
+namespace LootNet_API.Services.Interfaces;
 
 public interface IMarketplaceService
 {
-    Task<List<MarketListingDTO>> GetListingsAsync(ItemCategory? category, int pageNumber, int pageSize, string sort);
+    Task<PagedResultDTO<WeaponMarketDTO>> GetWeaponsAsync(WeaponQueryDTO query);
+    Task<PagedResultDTO<ArmorMarketDTO>> GetArmorsAsync(ArmorQueryDTO query);
     Task<MarketListing> CreateListingAsync(Guid userId, CreateMarketListingDTO dto);
     Task BuyItemAsync(Guid userId, Guid listingId);
 }

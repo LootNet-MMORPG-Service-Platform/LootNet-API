@@ -2,6 +2,7 @@ using System.Text;
 using LootNet_API.Data;
 using LootNet_API.Hubs;
 using LootNet_API.Services;
+using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -55,6 +56,8 @@ namespace LootNet_API
             builder.Services.AddScoped<ITokenService, TokenService>();
             builder.Services.AddScoped<IItemGenerationService, ItemGenerationService>();
             builder.Services.AddScoped<IItemNameGenerator, ItemNameGenerator>();
+            builder.Services.AddScoped<IInventoryService, InventoryService>();
+            builder.Services.AddScoped<IGenerationAdminService, GenerationAdminService>();
             builder.Services.AddSignalR();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();

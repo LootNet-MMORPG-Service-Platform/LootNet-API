@@ -1,4 +1,5 @@
 ﻿using LootNet_API.Enums;
+using LootNet_API.Services.Interfaces;
 
 namespace LootNet_API.Services;
 

@@ -6,6 +6,7 @@ using LootNet_API.Data;
 using LootNet_API.Models;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
+using LootNet_API.Services.Interfaces;
 
 namespace LootNet_API.Services;
 

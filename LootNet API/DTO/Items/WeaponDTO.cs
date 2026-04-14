@@ -1,0 +1,14 @@
+﻿using LootNet_API.Enums;
+
+namespace LootNet_API.DTO.Items;
+
+public class WeaponDTO
+{
+    public Guid Id { get; set; }
+    public required string Name { get; set; }
+    public ItemCategory Category { get; set; }
+    public WeaponType WeaponType { get; set; }
+    public double Cut { get; set; }
+    public double Blunt { get; set; }
+    public List<ItemElementDTO> Elements { get; set; } = [];
+}

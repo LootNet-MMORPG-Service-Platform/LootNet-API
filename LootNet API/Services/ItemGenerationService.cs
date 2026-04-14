@@ -1,7 +1,7 @@
 ﻿using LootNet_API.Data;
 using LootNet_API.Enums;
 using LootNet_API.Models.Items;
-using LootNet_API.Services;
+using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 public class ItemGenerationService : IItemGenerationService

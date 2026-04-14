@@ -1,13 +1,15 @@
 ﻿namespace LootNet_API.Controllers;
 using LootNet_API.Data;
+using LootNet_API.DTO.Items;
+using LootNet_API.DTO;
 using LootNet_API.Enums;
 using LootNet_API.Extensions;
 using LootNet_API.Hubs;
 using LootNet_API.Models.Items;
-using LootNet_API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using LootNet_API.Services.Interfaces;
 
 [ApiController]
 [Route("api/mobile")]
@@ -17,12 +19,15 @@ public class MobileController : ControllerBase
     private readonly AppDbContext _context;
     private readonly IHubContext<GameHub> _hub;
     private readonly IItemGenerationService _itemGenerationService;
+    private readonly IInventoryService _inventoryService;
 
-    public MobileController(AppDbContext context, IHubContext<GameHub> hub, IItemGenerationService itemGenerationService)
+    public MobileController(AppDbContext context, IHubContext<GameHub> hub,
+        IItemGenerationService itemGenerationService, IInventoryService inventoryService)
     {
         _context = context;
         _hub = hub;
         _itemGenerationService = itemGenerationService;
+        _inventoryService = inventoryService;
     }
 
     [HttpGet("me")]
@@ -35,11 +40,11 @@ public class MobileController : ControllerBase
         if (user == null)
             return NotFound();
 
-        return Ok(new
+        return Ok(new UserProfileDTO
         {
-            user.Username,
-            user.Currency,
-            user.Role
+            Username = user.Username,
+            Currency = user.Currency,
+            Role = user.Role
         });
     }
 
@@ -82,7 +87,12 @@ public class MobileController : ControllerBase
         await _hub.Clients.User(userId.ToString())
             .SendAsync("ItemGenerated", item.Name);
 
-        return Ok(item);
+        return Ok(new ItemRewardDTO
+        {
+            Id = item.Id,
+            Name = item.Name,
+            Category = item.Category,
+        });
     }
 
     [HttpGet("items")]
@@ -101,5 +111,42 @@ public class MobileController : ControllerBase
         var allItems = weapons.Concat(armors).ToList();
 
         return Ok(allItems);
+    }
+    [HttpGet]
+    public async Task<IActionResult> GetInventory()
+    {
+        var userId = User.GetUserId();
+        return Ok(await _inventoryService.GetInventoryAsync(userId));
+    }
+
+    [HttpGet("equipment")]
+    public async Task<IActionResult> GetEquipment()
+    {
+        var userId = User.GetUserId();
+        return Ok(await _inventoryService.GetEquipmentAsync(userId));
+    }
+
+    [HttpPost("equip/weapon/{slot}/{itemId}")]
+    public async Task<IActionResult> EquipWeapon(int slot, Guid itemId)
+    {
+        var userId = User.GetUserId();
+        await _inventoryService.EquipWeaponAsync(userId, itemId, slot);
+        return Ok();
+    }
+
+    [HttpPost("equip/armor/{itemId}")]
+    public async Task<IActionResult> EquipArmor(Guid itemId)
+    {
+        var userId = User.GetUserId();
+        await _inventoryService.EquipArmorAsync(userId, itemId);
+        return Ok();
+    }
+
+    [HttpPost("unequip/{itemId}")]
+    public async Task<IActionResult> Unequip(Guid itemId)
+    {
+        var userId = User.GetUserId();
+        await _inventoryService.UnequipItemAsync(userId, itemId);
+        return Ok();
     }
 }
