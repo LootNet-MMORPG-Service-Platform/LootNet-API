@@ -88,17 +88,17 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ItemElement>()
             .ToTable(t => t.HasCheckConstraint(
                 "CK_ItemElement_OnlyOneOwner",
-                @"(WeaponId IS NULL AND ArmorId IS NOT NULL)
+                @"(""WeaponId"" IS NULL AND ""ArmorId"" IS NOT NULL)
                   OR
-                  (WeaponId IS NOT NULL AND ArmorId IS NULL)"
+                  (""WeaponId"" IS NOT NULL AND ""ArmorId"" IS NULL)"
             ));
 
         modelBuilder.Entity<DistributionSegment>()
             .ToTable(t => t.HasCheckConstraint(
                 "CK_DistributionSegment_OnlyOneParent",
-                @"(ItemParameterSettingId IS NULL AND ItemElementSettingId IS NOT NULL)
+                @"(""ItemParameterSettingId"" IS NULL AND ""ItemElementSettingId"" IS NOT NULL)
                   OR
-                  (ItemParameterSettingId IS NOT NULL AND ItemElementSettingId IS NULL)"
+                  (""ItemParameterSettingId"" IS NOT NULL AND ""ItemElementSettingId"" IS NULL)"
             ));
 
         modelBuilder.Entity<MarketListing>()

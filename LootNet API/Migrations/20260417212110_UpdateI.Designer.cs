@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace LootNet_API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260402200048_UpdateII")]
-    partial class UpdateII
+    [Migration("20260417212110_UpdateI")]
+    partial class UpdateI
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,50 @@ namespace LootNet_API.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Equipment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("BodyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("BootsId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("GlovesId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("HeadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LegsId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("WeaponSlot1Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("WeaponSlot2Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("WeaponSlot3Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("WeaponSlot4Id")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("Equipments");
+                });
 
             modelBuilder.Entity("LootNet_API.Models.Items.Armor", b =>
                 {
@@ -82,7 +126,10 @@ namespace LootNet_API.Migrations
 
                     b.HasIndex("ItemParameterSettingId");
 
-                    b.ToTable("DistributionSegment");
+                    b.ToTable("DistributionSegments", t =>
+                        {
+                            t.HasCheckConstraint("CK_DistributionSegment_OnlyOneParent", "(\"ItemParameterSettingId\" IS NULL AND \"ItemElementSettingId\" IS NOT NULL)\r\n                  OR\r\n                  (\"ItemParameterSettingId\" IS NOT NULL AND \"ItemElementSettingId\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.GenerationProfile", b =>
@@ -124,7 +171,10 @@ namespace LootNet_API.Migrations
 
                     b.HasIndex("WeaponId");
 
-                    b.ToTable("ItemElement");
+                    b.ToTable("ItemElements", t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemElement_OnlyOneOwner", "(\"WeaponId\" IS NULL AND \"ArmorId\" IS NOT NULL)\r\n                  OR\r\n                  (\"WeaponId\" IS NOT NULL AND \"ArmorId\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.ItemElementSetting", b =>
@@ -136,17 +186,14 @@ namespace LootNet_API.Migrations
                     b.Property<int>("ElementType")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("ItemGenerationRuleId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("RuleId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ItemGenerationRuleId");
+                    b.HasIndex("RuleId");
 
-                    b.ToTable("ItemElementSetting");
+                    b.ToTable("ItemElementSettings");
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.ItemGenerationRule", b =>
@@ -161,9 +208,6 @@ namespace LootNet_API.Migrations
                     b.Property<int>("Category")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("GenerationProfileId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("IsFallback")
                         .HasColumnType("boolean");
 
@@ -175,7 +219,7 @@ namespace LootNet_API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GenerationProfileId");
+                    b.HasIndex("ProfileId");
 
                     b.ToTable("ItemGenerationRules");
                 });
@@ -186,9 +230,6 @@ namespace LootNet_API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("ItemGenerationRuleId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("Parameter")
                         .HasColumnType("integer");
 
@@ -197,9 +238,9 @@ namespace LootNet_API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ItemGenerationRuleId");
+                    b.HasIndex("RuleId");
 
-                    b.ToTable("ItemParameterSetting");
+                    b.ToTable("ItemParameterSettings");
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.ItemTypeWeight", b =>
@@ -214,9 +255,6 @@ namespace LootNet_API.Migrations
                     b.Property<int>("Category")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("GenerationProfileId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("ProfileId")
                         .HasColumnType("uuid");
 
@@ -228,9 +266,9 @@ namespace LootNet_API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GenerationProfileId");
+                    b.HasIndex("ProfileId");
 
-                    b.ToTable("ItemTypeWeight");
+                    b.ToTable("ItemTypeWeights");
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.Weapon", b =>
@@ -263,27 +301,89 @@ namespace LootNet_API.Migrations
                     b.ToTable("Weapons");
                 });
 
-            modelBuilder.Entity("LootNet_API.Models.MarketListing", b =>
+            modelBuilder.Entity("LootNet_API.Models.Logs.AdminLog", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("AdminId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Data")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TargetUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AdminLogs");
+                });
+
+            modelBuilder.Entity("LootNet_API.Models.Market.MarketListing", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsSold")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("ItemId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Price")
-                        .HasColumnType("integer");
+                    b.Property<decimal>("Price")
+                        .HasColumnType("numeric");
 
                     b.Property<Guid>("SellerId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category");
+
+                    b.HasIndex("Price");
+
+                    b.ToTable("MarketListings");
+                });
+
+            modelBuilder.Entity("LootNet_API.Models.RefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.ToTable("MarketListings");
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Transaction", b =>
@@ -318,8 +418,17 @@ namespace LootNet_API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Currency")
-                        .HasColumnType("integer");
+                    b.Property<string>("BlockReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("BlockedUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Currency")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool>("IsBlocked")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime?>("LastDailyReward")
                         .HasColumnType("timestamp with time zone");
@@ -342,57 +451,81 @@ namespace LootNet_API.Migrations
 
                     b.HasIndex("ProfileId");
 
+                    b.HasIndex("Username")
+                        .IsUnique();
+
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("Equipment", b =>
+                {
+                    b.HasOne("LootNet_API.Models.User", null)
+                        .WithOne("Equipment")
+                        .HasForeignKey("Equipment", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.DistributionSegment", b =>
                 {
                     b.HasOne("LootNet_API.Models.Items.ItemElementSetting", null)
                         .WithMany("Segments")
-                        .HasForeignKey("ItemElementSettingId");
+                        .HasForeignKey("ItemElementSettingId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("LootNet_API.Models.Items.ItemParameterSetting", null)
                         .WithMany("Segments")
-                        .HasForeignKey("ItemParameterSettingId");
+                        .HasForeignKey("ItemParameterSettingId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.ItemElement", b =>
                 {
                     b.HasOne("LootNet_API.Models.Items.Armor", null)
                         .WithMany("Elements")
-                        .HasForeignKey("ArmorId");
+                        .HasForeignKey("ArmorId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("LootNet_API.Models.Items.Weapon", null)
                         .WithMany("Elements")
-                        .HasForeignKey("WeaponId");
+                        .HasForeignKey("WeaponId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.ItemElementSetting", b =>
                 {
                     b.HasOne("LootNet_API.Models.Items.ItemGenerationRule", null)
                         .WithMany("Elements")
-                        .HasForeignKey("ItemGenerationRuleId");
+                        .HasForeignKey("RuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.ItemGenerationRule", b =>
                 {
                     b.HasOne("LootNet_API.Models.Items.GenerationProfile", null)
                         .WithMany("Rules")
-                        .HasForeignKey("GenerationProfileId");
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.ItemParameterSetting", b =>
                 {
                     b.HasOne("LootNet_API.Models.Items.ItemGenerationRule", null)
                         .WithMany("Parameters")
-                        .HasForeignKey("ItemGenerationRuleId");
+                        .HasForeignKey("RuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("LootNet_API.Models.Items.ItemTypeWeight", b =>
                 {
                     b.HasOne("LootNet_API.Models.Items.GenerationProfile", null)
                         .WithMany("TypeWeights")
-                        .HasForeignKey("GenerationProfileId");
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("LootNet_API.Models.User", b =>
@@ -438,6 +571,12 @@ namespace LootNet_API.Migrations
             modelBuilder.Entity("LootNet_API.Models.Items.Weapon", b =>
                 {
                     b.Navigation("Elements");
+                });
+
+            modelBuilder.Entity("LootNet_API.Models.User", b =>
+                {
+                    b.Navigation("Equipment")
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }
