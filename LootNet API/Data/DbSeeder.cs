@@ -85,7 +85,7 @@ public static class DbSeeder
             {
                 Id = Guid.NewGuid(),
                 Username = $"Player{i}",
-                PasswordHash = "hashedpassword",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("hashedpassword"),
                 Role = UserRole.Player,
                 ProfileId = profile.Id,
                 Currency = 1000,
