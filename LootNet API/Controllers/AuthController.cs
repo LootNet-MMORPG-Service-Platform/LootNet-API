@@ -55,7 +55,7 @@ public class AuthController : ControllerBase
     {
         var user = _context.Users.FirstOrDefault(u => u.Username == dto.Username);
 
-        if (user == null)
+        if (user == null || user.IsBlocked)
             return Unauthorized();
 
         var valid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);

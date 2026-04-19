@@ -15,15 +15,122 @@ public class InventoryService : IInventoryService
         _context = context;
     }
 
+    public async Task MoveToRunAsync(Guid userId, List<Guid> itemIds)
+    {
+        var items = await _context.InventoryItems
+            .Where(x => x.UserId == userId && itemIds.Contains(x.ItemId))
+            .ToListAsync();
+
+        foreach (var i in items)
+        {
+            _context.RunInventoryItems.Add(new RunInventoryItem
+            {
+                Id = Guid.NewGuid(),
+                UserId = i.UserId,
+                ItemId = i.ItemId
+            });
+        }
+
+        _context.InventoryItems.RemoveRange(items);
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task ReturnFromRunAsync(Guid userId)
+    {
+        var items = await _context.RunInventoryItems
+            .Where(x => x.UserId == userId)
+            .ToListAsync();
+
+        foreach (var i in items)
+        {
+            _context.InventoryItems.Add(new InventoryItem
+            {
+                Id = Guid.NewGuid(),
+                UserId = i.UserId,
+                ItemId = i.ItemId
+            });
+        }
+
+        _context.RunInventoryItems.RemoveRange(items);
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task MoveToMarketAsync(Guid userId, Guid itemId)
+    {
+        var item = await _context.InventoryItems
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.ItemId == itemId);
+
+        if (item == null)
+            throw new InvalidOperationException("Item not in inventory");
+
+        _context.MarketInventoryItems.Add(new MarketInventoryItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            ItemId = itemId
+        });
+
+        _context.InventoryItems.Remove(item);
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task ReturnFromMarketAsync(Guid userId, Guid itemId)
+    {
+        var item = await _context.MarketInventoryItems
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.ItemId == itemId);
+
+        if (item == null)
+            throw new InvalidOperationException();
+
+        _context.InventoryItems.Add(new InventoryItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            ItemId = itemId
+        });
+
+        _context.MarketInventoryItems.Remove(item);
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task TransferFromSellerToBuyerAsync(Guid sellerId, Guid buyerId, Guid itemId)
+    {
+        var listing = await _context.MarketInventoryItems
+            .FirstOrDefaultAsync(x => x.UserId == sellerId && x.ItemId == itemId);
+
+        if (listing == null)
+            throw new InvalidOperationException();
+
+        _context.MarketInventoryItems.Remove(listing);
+
+        _context.InventoryItems.Add(new InventoryItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = buyerId,
+            ItemId = itemId
+        });
+
+        await _context.SaveChangesAsync();
+    }
+
     public async Task<ItemCollectionDTO> GetItemsAsync(Guid userId)
     {
+        var itemIds = await _context.InventoryItems
+            .Where(x => x.UserId == userId)
+            .Select(x => x.ItemId)
+            .ToListAsync();
+
         var weapons = await _context.Weapons
-            .Where(x => x.OwnerId == userId)
+            .Where(x => itemIds.Contains(x.Id))
             .Include(x => x.Elements)
             .ToListAsync();
 
         var armors = await _context.Armors
-            .Where(x => x.OwnerId == userId)
+            .Where(x => itemIds.Contains(x.Id))
             .Include(x => x.Elements)
             .ToListAsync();
 
@@ -36,38 +143,32 @@ public class InventoryService : IInventoryService
 
     public async Task<ItemCollectionDTO> GetInventoryAsync(Guid userId)
     {
-        var eq = await _context.Equipments.FirstOrDefaultAsync(x => x.UserId == userId);
-
-        var equipped = new HashSet<Guid>();
-
-        if (eq != null)
-        {
-            var ids = new Guid?[]
-            {
-                eq.HeadId, eq.BodyId, eq.GlovesId, eq.LegsId, eq.BootsId,
-                eq.WeaponSlot1Id, eq.WeaponSlot2Id, eq.WeaponSlot3Id, eq.WeaponSlot4Id
-            };
-
-            equipped = ids.Where(x => x.HasValue)
-                .Select(x => x!.Value)
-                .ToHashSet();
-        }
-
-        var weapons = await _context.Weapons
-            .Where(x => x.OwnerId == userId && !equipped.Contains(x.Id))
-            .Include(x => x.Elements)
+        var ids = await _context.InventoryItems
+            .Where(x => x.UserId == userId)
+            .Select(x => x.ItemId)
             .ToListAsync();
 
-        var armors = await _context.Armors
-            .Where(x => x.OwnerId == userId && !equipped.Contains(x.Id))
-            .Include(x => x.Elements)
+        return await LoadItems(ids);
+    }
+
+    public async Task<ItemCollectionDTO> GetRunInventoryAsync(Guid userId)
+    {
+        var ids = await _context.RunInventoryItems
+            .Where(x => x.UserId == userId)
+            .Select(x => x.ItemId)
             .ToListAsync();
 
-        return new ItemCollectionDTO
-        {
-            Weapons = weapons.Select(MapWeapon).ToList(),
-            Armors = armors.Select(MapArmor).ToList()
-        };
+        return await LoadItems(ids);
+    }
+
+    public async Task<ItemCollectionDTO> GetMarketInventoryAsync(Guid userId)
+    {
+        var ids = await _context.MarketInventoryItems
+            .Where(x => x.UserId == userId)
+            .Select(x => x.ItemId)
+            .ToListAsync();
+
+        return await LoadItems(ids);
     }
 
     public async Task<EquipmentResponseDTO> GetEquipmentAsync(Guid userId)
@@ -114,6 +215,140 @@ public class InventoryService : IInventoryService
         return item == null ? null : MapArmor(item);
     }
 
+
+    public async Task EquipWeaponAsync(Guid userId, Guid itemId, int slot)
+    {
+        var exists = await _context.InventoryItems
+            .AnyAsync(x => x.UserId == userId && x.ItemId == itemId);
+
+        if (!exists)
+            throw new InvalidOperationException("Item not in inventory");
+
+        var eq = await _context.Equipments
+            .FirstAsync(x => x.UserId == userId);
+
+        SetWeaponSlot(eq, itemId, slot);
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task EquipArmorAsync(Guid userId, Guid itemId)
+    {
+        var exists = await _context.InventoryItems
+            .AnyAsync(x => x.UserId == userId && x.ItemId == itemId);
+
+        if (!exists)
+            throw new InvalidOperationException("Item not in inventory");
+
+        var armor = await _context.Armors
+            .FirstOrDefaultAsync(x => x.Id == itemId);
+
+        if (armor == null)
+            throw new InvalidOperationException("Armor not found");
+
+        var eq = await _context.Equipments
+            .FirstAsync(x => x.UserId == userId);
+
+        SetArmorSlot(eq, armor.ArmorType, itemId);
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task EquipWeaponFromRunAsync(Guid userId, Guid itemId, int slot)
+    {
+        var exists = await _context.RunInventoryItems
+            .AnyAsync(x => x.UserId == userId && x.ItemId == itemId);
+
+        if (!exists)
+            throw new InvalidOperationException("Item not in run inventory");
+
+        var eq = await _context.Equipments.FirstAsync(x => x.UserId == userId);
+
+        SetWeaponSlot(eq, itemId, slot);
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task EquipArmorFromRunAsync(Guid userId, Guid itemId)
+    {
+        var exists = await _context.RunInventoryItems
+            .AnyAsync(x => x.UserId == userId && x.ItemId == itemId);
+
+        if (!exists)
+            throw new InvalidOperationException();
+
+        var armor = await _context.Armors.FirstAsync(x => x.Id == itemId);
+
+        var eq = await _context.Equipments.FirstAsync(x => x.UserId == userId);
+
+        SetArmorSlot(eq, armor.ArmorType, itemId);
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task UnequipItemAsync(Guid userId, Guid itemId)
+    {
+        var eq = await _context.Equipments.FirstOrDefaultAsync(x => x.UserId == userId);
+        if (eq == null) return;
+
+        var props = typeof(Equipment).GetProperties();
+
+        foreach (var p in props)
+        {
+            if (p.PropertyType == typeof(Guid?) &&
+                (Guid?)p.GetValue(eq) == itemId)
+            {
+                p.SetValue(eq, null);
+                break;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task AddToInventoryAsync(Guid userId, Guid itemId)
+    {
+        _context.InventoryItems.Add(new InventoryItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            ItemId = itemId
+        });
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task AddToRunInventoryAsync(Guid userId, Guid itemId)
+    {
+        _context.RunInventoryItems.Add(new RunInventoryItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            ItemId = itemId
+        });
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task<ItemCollectionDTO> LoadItems(List<Guid> ids)
+    {
+        var weapons = await _context.Weapons
+            .Where(x => ids.Contains(x.Id))
+            .Include(x => x.Elements)
+            .ToListAsync();
+
+        var armors = await _context.Armors
+            .Where(x => ids.Contains(x.Id))
+            .Include(x => x.Elements)
+            .ToListAsync();
+
+        return new ItemCollectionDTO
+        {
+            Weapons = weapons.Select(MapWeapon).ToList(),
+            Armors = armors.Select(MapArmor).ToList()
+        };
+    }
+
     private WeaponDTO MapWeapon(Weapon x)
     {
         return new WeaponDTO
@@ -150,93 +385,28 @@ public class InventoryService : IInventoryService
         };
     }
 
-
-    public async Task EquipWeaponAsync(Guid userId, Guid itemId, int slot)
+    private void SetWeaponSlot(Equipment eq, Guid itemId, int slot)
     {
-        var weapon = await _context.Weapons
-            .FirstOrDefaultAsync(x => x.Id == itemId && x.OwnerId == userId);
-
-        if (weapon == null)
-            throw new InvalidOperationException("Weapon not found");
-
-        var eq = await _context.Equipments
-            .FirstOrDefaultAsync(x => x.UserId == userId);
-
-        if (eq == null)
-            throw new InvalidOperationException("Equipment not found");
-
         switch (slot)
         {
             case 1: eq.WeaponSlot1Id = itemId; break;
             case 2: eq.WeaponSlot2Id = itemId; break;
             case 3: eq.WeaponSlot3Id = itemId; break;
             case 4: eq.WeaponSlot4Id = itemId; break;
-            default: throw new InvalidOperationException("Invalid weapon slot");
+            default: throw new InvalidOperationException();
         }
-
-        await _context.SaveChangesAsync();
     }
 
-    public async Task EquipArmorAsync(Guid userId, Guid itemId)
+    private void SetArmorSlot(Equipment eq, ArmorType type, Guid itemId)
     {
-        var armor = await _context.Armors
-            .FirstOrDefaultAsync(x => x.Id == itemId && x.OwnerId == userId);
-
-        if (armor == null)
-            throw new InvalidOperationException("Armor not found");
-
-        var eq = await _context.Equipments
-            .FirstOrDefaultAsync(x => x.UserId == userId);
-
-        if (eq == null)
-            throw new InvalidOperationException("Equipment not found");
-
-        switch (armor.ArmorType)
+        switch (type)
         {
-            case ArmorType.Head:
-                eq.HeadId = itemId;
-                break;
-
-            case ArmorType.Body:
-                eq.BodyId = itemId;
-                break;
-
-            case ArmorType.Gloves:
-                eq.GlovesId = itemId;
-                break;
-
-            case ArmorType.Legs:
-                eq.LegsId = itemId;
-                break;
-
-            case ArmorType.Boots:
-                eq.BootsId = itemId;
-                break;
-
-            default:
-                throw new InvalidOperationException("Invalid armor category");
+            case ArmorType.Head: eq.HeadId = itemId; break;
+            case ArmorType.Body: eq.BodyId = itemId; break;
+            case ArmorType.Gloves: eq.GlovesId = itemId; break;
+            case ArmorType.Legs: eq.LegsId = itemId; break;
+            case ArmorType.Boots: eq.BootsId = itemId; break;
+            default: throw new InvalidOperationException();
         }
-
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task UnequipItemAsync(Guid userId, Guid itemId)
-    {
-        var eq = await _context.Equipments.FirstOrDefaultAsync(x => x.UserId == userId);
-        if (eq == null) return;
-
-        var props = typeof(Equipment).GetProperties();
-
-        foreach (var p in props)
-        {
-            if (p.PropertyType == typeof(Guid?) &&
-                (Guid?)p.GetValue(eq) == itemId)
-            {
-                p.SetValue(eq, null);
-                break;
-            }
-        }
-
-        await _context.SaveChangesAsync();
     }
 }

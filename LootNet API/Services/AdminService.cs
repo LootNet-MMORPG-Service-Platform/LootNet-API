@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LootNet_API.Services;
 
-public class AdminService
+public class AdminService : IAdminService
 {
     private readonly AppDbContext _context;
     private readonly IInventoryService _inventory;
@@ -68,6 +68,26 @@ public class AdminService
         };
     }
 
+    public async Task<ItemCollectionDTO> GetUserInventoryAsync(Guid userId)
+    {
+        return await _inventory.GetInventoryAsync(userId);
+    }
+
+    public async Task<ItemCollectionDTO> GetUserRunInventoryAsync(Guid userId)
+    {
+        return await _inventory.GetRunInventoryAsync(userId);
+    }
+
+    public async Task<ItemCollectionDTO> GetUserMarketInventoryAsync(Guid userId)
+    {
+        return await _inventory.GetMarketInventoryAsync(userId);
+    }
+
+    public async Task<EquipmentResponseDTO> GetUserEquipmentAsync(Guid userId)
+    {
+        return await _inventory.GetEquipmentAsync(userId);
+    }
+
     public async Task BlockUserAsync(Guid adminId, Guid userId, string reason, int? days)
     {
         var user = await _context.Users.FirstAsync(x => x.Id == userId);
@@ -115,14 +135,7 @@ public class AdminService
             newRole = role
         });
     }
-    public async Task<ItemCollectionDTO> GetUserInventoryAsync(Guid userId)
-    {
-        return await _inventory.GetInventoryAsync(userId);
-    }
-    public async Task<EquipmentResponseDTO> GetUserEquipmentAsync(Guid userId)
-    {
-        return await _inventory.GetEquipmentAsync(userId);
-    }
+
     private async Task LogAsync(Guid adminId, string action, Guid targetUserId, object? data = null)
     {
         _context.AdminLogs.Add(new AdminLog
@@ -136,10 +149,13 @@ public class AdminService
 
         await _context.SaveChangesAsync();
     }
+
     private IQueryable<User> ApplyUserFilters(IQueryable<User> q, GetUsersQueryDTO query)
     {
         if (!string.IsNullOrWhiteSpace(query.Search))
-            q = q.Where(x => x.Username.Contains(query.Search));
+            q = q.Where(x =>
+                x.Username.Contains(query.Search) ||
+                x.Currency.ToString().Contains(query.Search));
 
         if (query.Role.HasValue)
             q = q.Where(x => x.Role == query.Role);
@@ -149,6 +165,7 @@ public class AdminService
 
         return q;
     }
+
     private IQueryable<User> ApplyUserSorting(IQueryable<User> q, string sortBy, string sortDir)
     {
         var desc = sortDir?.ToLower() == "desc";
@@ -167,7 +184,12 @@ public class AdminService
                 desc ? q.OrderByDescending(x => x.Role)
                      : q.OrderBy(x => x.Role),
 
-            _ => q.OrderBy(x => x.Username)
+            AdminUserSortBy.Blocked =>
+                desc ? q.OrderByDescending(x => x.IsBlocked)
+                     : q.OrderBy(x => x.IsBlocked),
+
+            _ =>
+                q.OrderBy(x => x.Username)
         };
     }
 }

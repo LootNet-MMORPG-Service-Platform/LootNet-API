@@ -1,4 +1,4 @@
-﻿namespace LootNet_API.Models.Items;
+﻿namespace LootNet_API.Models.Items.Generation;
 using Enums;
 
 public class ItemParameterSetting

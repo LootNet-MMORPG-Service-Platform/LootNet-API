@@ -1,4 +1,4 @@
-﻿namespace LootNet_API.Models.Items;
+﻿namespace LootNet_API.Models.Items.Generation;
 
 public class DistributionSegment
 {

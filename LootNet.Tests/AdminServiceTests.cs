@@ -258,20 +258,47 @@ public class AdminServiceTests
     }
 
     [Fact]
-    public async Task GetUsers_ReturnsEmpty_WhenNoUsers()
+    public async Task GetUserInventory_ReturnsEmptyStub()
     {
         using var db = CreateDb();
-
         var service = new AdminService(db, CreateInventoryStub());
 
-        var result = await service.GetUsersAsync(new GetUsersQueryDTO
-        {
-            Page = 1,
-            PageSize = 10
-        });
+        var result = await service.GetUserInventoryAsync(Guid.NewGuid());
 
-        Assert.Empty(result.Items);
-        Assert.Equal(0, result.TotalCount);
+        Assert.NotNull(result);
+    }
+
+    [Fact]
+    public async Task GetUserRunInventory_ReturnsEmptyStub()
+    {
+        using var db = CreateDb();
+        var service = new AdminService(db, CreateInventoryStub());
+
+        var result = await service.GetUserRunInventoryAsync(Guid.NewGuid());
+
+        Assert.NotNull(result);
+    }
+
+    [Fact]
+    public async Task GetUserMarketInventory_ReturnsEmptyStub()
+    {
+        using var db = CreateDb();
+        var service = new AdminService(db, CreateInventoryStub());
+
+        var result = await service.GetUserMarketInventoryAsync(Guid.NewGuid());
+
+        Assert.NotNull(result);
+    }
+
+    [Fact]
+    public async Task GetUserEquipment_ReturnsStub()
+    {
+        using var db = CreateDb();
+        var service = new AdminService(db, CreateInventoryStub());
+
+        var result = await service.GetUserEquipmentAsync(Guid.NewGuid());
+
+        Assert.NotNull(result);
     }
 
     private class FakeInventoryService : IInventoryService
@@ -282,16 +309,49 @@ public class AdminServiceTests
         public Task<ItemCollectionDTO> GetInventoryAsync(Guid userId)
             => Task.FromResult(new ItemCollectionDTO());
 
+        public Task<ItemCollectionDTO> GetRunInventoryAsync(Guid userId)
+            => Task.FromResult(new ItemCollectionDTO());
+
+        public Task<ItemCollectionDTO> GetMarketInventoryAsync(Guid userId)
+            => Task.FromResult(new ItemCollectionDTO());
+
         public Task<EquipmentResponseDTO> GetEquipmentAsync(Guid userId)
             => Task.FromResult(new EquipmentResponseDTO());
 
         public Task EquipWeaponAsync(Guid userId, Guid itemId, int slot)
             => throw new NotSupportedException();
 
+        public Task EquipWeaponFromRunAsync(Guid userId, Guid itemId, int slot)
+            => throw new NotSupportedException();
+
         public Task EquipArmorAsync(Guid userId, Guid itemId)
             => throw new NotSupportedException();
 
+        public Task EquipArmorFromRunAsync(Guid userId, Guid itemId)
+            => throw new NotSupportedException();
+
         public Task UnequipItemAsync(Guid userId, Guid itemId)
+            => throw new NotSupportedException();
+
+        public Task MoveToRunAsync(Guid userId, List<Guid> itemIds)
+            => throw new NotSupportedException();
+
+        public Task ReturnFromRunAsync(Guid userId)
+            => throw new NotSupportedException();
+
+        public Task MoveToMarketAsync(Guid userId, Guid itemId)
+            => throw new NotSupportedException();
+
+        public Task ReturnFromMarketAsync(Guid userId, Guid itemId)
+            => throw new NotSupportedException();
+
+        public Task AddToInventoryAsync(Guid userId, Guid itemId)
+            => throw new NotSupportedException();
+
+        public Task AddToRunInventoryAsync(Guid userId, Guid itemId)
+            => throw new NotSupportedException();
+
+        public Task TransferFromSellerToBuyerAsync(Guid sellerId, Guid buyerId, Guid itemId)
             => throw new NotSupportedException();
     }
 }

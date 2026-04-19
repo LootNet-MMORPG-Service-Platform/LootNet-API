@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using LootNet_API.Tests.Helpers;
 using Xunit;
 using LootNet_API.Services.Interfaces;
+using LootNet_API.Models.Items.Generation;
 
 public class ItemGeneratorTests
 {
@@ -86,7 +87,6 @@ public class ItemGeneratorTests
         var item = await generator.GenerateItemAsync(user.Id) as Weapon;
 
         Assert.NotNull(item);
-        Assert.Equal(user.Id, item.OwnerId);
         Assert.Equal(WeaponType.Sword, item.WeaponType);
         Assert.InRange(item.Cut, 10, 20);
         Assert.Single(item.Elements);

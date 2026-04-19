@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using LootNet_API.Services.Interfaces;
+using System.Threading.Tasks;
 
 [ApiController]
 [Route("api/mobile")]
@@ -96,27 +97,31 @@ public class MobileController : ControllerBase
     }
 
     [HttpGet("items")]
-    public IActionResult GetItems()
+    public async Task<IActionResult> GetItems()
     {
         var userId = User.GetUserId();
-
-        var weapons = _context.Weapons
-            .Where(x => x.OwnerId == userId)
-            .ToList<Item>();
-
-        var armors = _context.Armors
-            .Where(x => x.OwnerId == userId)
-            .ToList<Item>();
-
-        var allItems = weapons.Concat(armors).ToList();
-
-        return Ok(allItems);
+        return Ok(await _inventoryService.GetItemsAsync(userId));
     }
-    [HttpGet]
+
+    [HttpGet("inventory")]
     public async Task<IActionResult> GetInventory()
     {
         var userId = User.GetUserId();
         return Ok(await _inventoryService.GetInventoryAsync(userId));
+    }
+
+    [HttpGet("inventory/run")]
+    public async Task<IActionResult> GetRunInventory()
+    {
+        var userId = User.GetUserId();
+        return Ok(await _inventoryService.GetRunInventoryAsync(userId));
+    }
+
+    [HttpGet("inventory/market")]
+    public async Task<IActionResult> GetMarketInventory()
+    {
+        var userId = User.GetUserId();
+        return Ok(await _inventoryService.GetMarketInventoryAsync(userId));
     }
 
     [HttpGet("equipment")]

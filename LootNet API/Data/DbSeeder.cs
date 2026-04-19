@@ -2,6 +2,7 @@
 using LootNet_API.Enums;
 using LootNet_API.Models;
 using LootNet_API.Models.Items;
+using LootNet_API.Models.Items.Generation;
 using LootNet_API.Services.Interfaces;
 
 public static class DbSeeder

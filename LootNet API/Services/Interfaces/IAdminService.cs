@@ -17,5 +17,10 @@ public interface IAdminService
 
     Task ChangeRoleAsync(Guid adminId, Guid userId, UserRole role);
     Task<ItemCollectionDTO> GetUserInventoryAsync(Guid userId);
+
+    Task<ItemCollectionDTO> GetUserRunInventoryAsync(Guid userId);
+
+    Task<ItemCollectionDTO> GetUserMarketInventoryAsync(Guid userId);
+
     Task<EquipmentResponseDTO> GetUserEquipmentAsync(Guid userId);
 }

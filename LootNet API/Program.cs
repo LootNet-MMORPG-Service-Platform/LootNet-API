@@ -57,6 +57,7 @@ namespace LootNet_API
             builder.Services.AddScoped<IItemGenerationService, ItemGenerationService>();
             builder.Services.AddScoped<IItemNameGenerator, ItemNameGenerator>();
             builder.Services.AddScoped<IInventoryService, InventoryService>();
+            builder.Services.AddScoped<IAdminService, AdminService>();
             builder.Services.AddScoped<IGenerationAdminService, GenerationAdminService>();
             builder.Services.AddSignalR();
             builder.Services.AddEndpointsApiExplorer();

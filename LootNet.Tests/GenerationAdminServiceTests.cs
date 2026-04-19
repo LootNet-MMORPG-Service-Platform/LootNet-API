@@ -8,7 +8,7 @@ using LootNet_API.Data;
 using LootNet_API.DTO.Generation.Create;
 using LootNet_API.DTO.Generation.Update;
 using LootNet_API.Enums;
-using LootNet_API.Models.Items;
+using LootNet_API.Models.Items.Generation;
 using LootNet_API.Services;
 using Microsoft.EntityFrameworkCore;
 using Xunit;

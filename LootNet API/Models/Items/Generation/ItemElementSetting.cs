@@ -1,6 +1,6 @@
 ﻿using LootNet_API.Enums;
 
-namespace LootNet_API.Models.Items;
+namespace LootNet_API.Models.Items.Generation;
 
 public class ItemElementSetting
 {

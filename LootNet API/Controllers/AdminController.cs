@@ -19,35 +19,34 @@ public class AdminController : ControllerBase
         _service = service;
     }
 
+    [HttpGet("users")]
+    public async Task<IActionResult> GetUsers([FromQuery] GetUsersQueryDTO query)
+        => Ok(await _service.GetUsersAsync(query));
+
     [HttpGet("users/{id}")]
     public async Task<IActionResult> GetUser(Guid id)
-    {
-        return Ok(await _service.GetUserAsync(id));
-    }
+        => Ok(await _service.GetUserAsync(id));
 
     [HttpGet("users/{id}/inventory")]
     public async Task<IActionResult> GetInventory(Guid id)
-    {
-        return Ok(await _service.GetUserInventoryAsync(id));
-    }
+        => Ok(await _service.GetUserInventoryAsync(id));
+
+    [HttpGet("users/{id}/inventory/run")]
+    public async Task<IActionResult> GetRunInventory(Guid id)
+        => Ok(await _service.GetUserRunInventoryAsync(id));
+
+    [HttpGet("users/{id}/inventory/market")]
+    public async Task<IActionResult> GetMarketInventory(Guid id)
+        => Ok(await _service.GetUserMarketInventoryAsync(id));
 
     [HttpGet("users/{id}/equipment")]
     public async Task<IActionResult> GetEquipment(Guid id)
-    {
-        return Ok(await _service.GetUserEquipmentAsync(id));
-    }
-
-    [HttpGet("users")]
-    public async Task<IActionResult> GetUsers([FromQuery] GetUsersQueryDTO query)
-    {
-        return Ok(await _service.GetUsersAsync(query));
-    }
+        => Ok(await _service.GetUserEquipmentAsync(id));
 
     [HttpPost("users/{id}/block")]
     public async Task<IActionResult> Block(Guid id, BlockUserDTO dto)
     {
         var adminId = User.GetUserId();
-
         await _service.BlockUserAsync(adminId, id, dto.Reason, dto.Days);
         return Ok();
     }
@@ -56,7 +55,6 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> Unblock(Guid id)
     {
         var adminId = User.GetUserId();
-
         await _service.UnblockUserAsync(adminId, id);
         return Ok();
     }
@@ -66,7 +64,6 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> ChangeRole(Guid id, ChangeRoleDTO dto)
     {
         var adminId = User.GetUserId();
-
         await _service.ChangeRoleAsync(adminId, id, dto.Role);
         return Ok();
     }

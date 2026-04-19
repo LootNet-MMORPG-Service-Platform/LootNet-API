@@ -6,6 +6,7 @@ using LootNet_API.DTO.Generation.Update;
 using LootNet_API.Enums;
 using LootNet_API.Models;
 using LootNet_API.Models.Items;
+using LootNet_API.Models.Items.Generation;
 using LootNet_API.Models.Logs;
 using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;

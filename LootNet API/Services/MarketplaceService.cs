@@ -4,6 +4,7 @@ using LootNet_API.Data;
 using LootNet_API.DTO;
 using LootNet_API.DTO.Items;
 using LootNet_API.Enums;
+using LootNet_API.Models;
 using LootNet_API.Models.Items;
 using LootNet_API.Models.Market;
 using LootNet_API.Services.Interfaces;
@@ -12,10 +13,12 @@ using Microsoft.EntityFrameworkCore;
 public class MarketplaceService : IMarketplaceService
 {
     private readonly AppDbContext _context;
+    private readonly IInventoryService _inventoryService;
 
-    public MarketplaceService(AppDbContext context)
+    public MarketplaceService(AppDbContext context, IInventoryService inventoryService)
     {
         _context = context;
+        _inventoryService = inventoryService;
     }
 
     public async Task<PagedResultDTO<WeaponMarketDTO>> GetWeaponsAsync(WeaponQueryDTO q)
@@ -116,11 +119,13 @@ public class MarketplaceService : IMarketplaceService
 
     public async Task<MarketListing> CreateListingAsync(Guid userId, CreateMarketListingDTO dto)
     {
-        Item? item = await _context.Weapons.FirstOrDefaultAsync(w => w.Id == dto.ItemId && w.OwnerId == userId)
-                     as Item
-                     ?? await _context.Armors.FirstOrDefaultAsync(a => a.Id == dto.ItemId && a.OwnerId == userId);
+        var item = await _context.Weapons.FirstOrDefaultAsync(x => x.Id == dto.ItemId)
+                 ?? (Item?)await _context.Armors.FirstOrDefaultAsync(x => x.Id == dto.ItemId);
 
-        if (item == null) throw new InvalidOperationException("Item not found or not owned by user");
+        if (item == null)
+            throw new InvalidOperationException("Item not found");
+
+        await _inventoryService.MoveToMarketAsync(userId, dto.ItemId);
 
         var listing = new MarketListing
         {
@@ -132,6 +137,7 @@ public class MarketplaceService : IMarketplaceService
         };
 
         _context.MarketListings.Add(listing);
+
         await _context.SaveChangesAsync();
 
         return listing;
@@ -139,23 +145,22 @@ public class MarketplaceService : IMarketplaceService
 
     public async Task BuyItemAsync(Guid buyerId, Guid listingId)
     {
-        var listing = await _context.MarketListings.FirstOrDefaultAsync(x => x.Id == listingId && !x.IsSold);
-        if (listing == null) throw new InvalidOperationException("Listing not found");
+        var listing = await _context.MarketListings
+            .FirstOrDefaultAsync(x => x.Id == listingId && !x.IsSold);
 
-        var buyer = await _context.Users.FirstAsync(u => u.Id == buyerId);
-        if (buyer.Currency < listing.Price) throw new InvalidOperationException("Not enough currency");
+        if (listing == null)
+            throw new InvalidOperationException("Listing not found");
 
-        var seller = await _context.Users.FirstAsync(u => u.Id == listing.SellerId);
+        var buyer = await _context.Users.FirstAsync(x => x.Id == buyerId);
+        var seller = await _context.Users.FirstAsync(x => x.Id == listing.SellerId);
+
+        if (buyer.Currency < listing.Price)
+            throw new InvalidOperationException("Not enough currency");
 
         buyer.Currency -= listing.Price;
         seller.Currency += listing.Price;
 
-        Item? item = await _context.Weapons.FirstOrDefaultAsync(w => w.Id == listing.ItemId)
-                     as Item
-                     ?? await _context.Armors.FirstOrDefaultAsync(a => a.Id == listing.ItemId);
-
-        if (item == null) throw new InvalidOperationException("Item not found");
-        item.OwnerId = buyerId;
+        await _inventoryService.TransferFromSellerToBuyerAsync(seller.Id, buyerId, listing.ItemId);
 
         listing.IsSold = true;
 

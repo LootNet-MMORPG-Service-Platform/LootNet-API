@@ -1,6 +1,7 @@
 ﻿using LootNet_API.Data;
 using LootNet_API.Enums;
 using LootNet_API.Models.Items;
+using LootNet_API.Models.Items.Generation;
 using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -43,14 +44,14 @@ public class ItemGenerationService : IItemGenerationService
             var rule = profile.Rules.FirstOrDefault(r => r.Category == ItemCategory.Weapon)
                        ?? await GetFallbackRuleAsync(ItemCategory.Weapon);
 
-            return GenerateWeapon(user.Id, rule);
+            return GenerateWeapon(rule);
         }
         else
         {
             var rule = profile.Rules.FirstOrDefault(r => r.Category == ItemCategory.Armor)
                        ?? await GetFallbackRuleAsync(ItemCategory.Armor);
 
-            return GenerateArmor(user.Id, rule);
+            return GenerateArmor(rule);
         }
     }
 
@@ -80,12 +81,11 @@ public class ItemGenerationService : IItemGenerationService
             ?? throw new InvalidOperationException("No fallback for category");
     }
 
-    private Weapon GenerateWeapon(Guid ownerId, ItemGenerationRule rule)
+    private Weapon GenerateWeapon(ItemGenerationRule rule)
     {
         var weapon = new Weapon
         {
             Id = Guid.NewGuid(),
-            OwnerId = ownerId,
             Category = ItemCategory.Weapon,
             WeaponType = rule.WeaponType!.Value,
             Name = _nameGenerator.GenerateWeaponName(rule.WeaponType.Value)
@@ -98,6 +98,7 @@ public class ItemGenerationService : IItemGenerationService
                 case ItemParameter.CutDamage:
                     weapon.Cut = SampleParam(param);
                     break;
+
                 case ItemParameter.BluntDamage:
                     weapon.Blunt = SampleParam(param);
                     break;
@@ -106,23 +107,21 @@ public class ItemGenerationService : IItemGenerationService
 
         foreach (var elem in rule.Elements)
         {
-            var value = SampleParam(elem);
             weapon.Elements.Add(new ItemElement
             {
                 ItemElementType = elem.ElementType,
-                Value = value
+                Value = SampleParam(elem)
             });
         }
 
         return weapon;
     }
 
-    private Armor GenerateArmor(Guid ownerId, ItemGenerationRule rule)
+    private Armor GenerateArmor(ItemGenerationRule rule)
     {
         var armor = new Armor
         {
             Id = Guid.NewGuid(),
-            OwnerId = ownerId,
             Category = ItemCategory.Armor,
             ArmorType = rule.ArmorType!.Value,
             Name = _nameGenerator.GenerateArmorName(rule.ArmorType.Value)
@@ -135,6 +134,7 @@ public class ItemGenerationService : IItemGenerationService
                 case ItemParameter.CutResistance:
                     armor.CutResistance = SampleParam(param);
                     break;
+
                 case ItemParameter.BluntResistance:
                     armor.BluntResistance = SampleParam(param);
                     break;
@@ -143,11 +143,10 @@ public class ItemGenerationService : IItemGenerationService
 
         foreach (var elem in rule.Elements)
         {
-            var value = SampleParam(elem);
             armor.Elements.Add(new ItemElement
             {
                 ItemElementType = elem.ElementType,
-                Value = value
+                Value = SampleParam(elem)
             });
         }
 

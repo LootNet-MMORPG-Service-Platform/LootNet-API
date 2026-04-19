@@ -2,6 +2,7 @@
 
 using LootNet_API.Models;
 using LootNet_API.Models.Items;
+using LootNet_API.Models.Items.Generation;
 using LootNet_API.Models.Logs;
 using LootNet_API.Models.Market;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,9 @@ public class AppDbContext : DbContext
     public DbSet<ItemElementSetting> ItemElementSettings { get; set; }
     public DbSet<DistributionSegment> DistributionSegments { get; set; }
     public DbSet<AdminLog> AdminLogs { get; set; }
+    public DbSet<InventoryItem> InventoryItems { get; set; }
+    public DbSet<MarketInventoryItem> MarketInventoryItems { get; set; }
+    public DbSet<RunInventoryItem> RunInventoryItems { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options) { }
@@ -122,5 +126,23 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<ItemElementSetting>()
             .HasIndex(x => x.RuleId);
+
+        modelBuilder.Entity<InventoryItem>()
+            .HasIndex(x => new { x.UserId, x.ItemId });
+
+        modelBuilder.Entity<MarketInventoryItem>()
+            .HasIndex(x => new { x.UserId, x.ItemId });
+
+        modelBuilder.Entity<RunInventoryItem>()
+            .HasIndex(x => new { x.UserId, x.ItemId });
+
+        modelBuilder.Entity<InventoryItem>()
+            .HasKey(x => x.Id);
+
+        modelBuilder.Entity<MarketInventoryItem>()
+            .HasKey(x => x.Id);
+
+        modelBuilder.Entity<RunInventoryItem>()
+            .HasKey(x => x.Id);
     }
 }
