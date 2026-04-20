@@ -1,6 +1,8 @@
 using System.Text;
 using LootNet_API.Data;
+using LootNet_API.Enums;
 using LootNet_API.Hubs;
+using LootNet_API.Models;
 using LootNet_API.Services;
 using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -87,6 +89,15 @@ namespace LootNet_API
                 return;
             }
 
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                db.Database.Migrate();
+
+                CreateSuperAdmin(db);
+            }
+
             app.UseHttpsRedirection();
             app.UseStaticFiles();
             app.UseRouting();
@@ -99,6 +110,33 @@ namespace LootNet_API
             app.UseSwaggerUI();
 
             app.Run();
+        }
+        private static void CreateSuperAdmin(AppDbContext db)
+        {
+            const string username = "superadmin";
+            const string password = "superadmin";
+
+            var exists = db.Users.Any(x => x.Username == username);
+
+            if (exists)
+                return;
+
+            var user = new User
+            {
+                Id = Guid.NewGuid(),
+                Username = username,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                Role = UserRole.SuperAdmin,
+                Currency = 0,
+                Equipment = new Equipment()
+            };
+
+            db.Users.Add(user);
+            db.SaveChanges();
+
+            Console.WriteLine("SuperAdmin created:");
+            Console.WriteLine("login: superadmin");
+            Console.WriteLine("password: superadmin");
         }
     }
 }
