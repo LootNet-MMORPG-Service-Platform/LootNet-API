@@ -5,4 +5,5 @@ namespace LootNet_API.Services.Interfaces;
 public interface IItemGenerationService
 {
     Task<Item> GenerateItemAsync(Guid ownerId);
+    Task<List<Item>> GenerateForEnemyAsync(Guid generationProfileId);
 }

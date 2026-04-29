@@ -1,6 +1,7 @@
 ﻿namespace LootNet_API.Models;
 
 using Enums;
+using LootNet_API.Models.Items;
 using LootNet_API.Models.Items.Generation;
 
 public class User

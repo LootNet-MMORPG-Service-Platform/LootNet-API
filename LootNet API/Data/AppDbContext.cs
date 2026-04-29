@@ -1,6 +1,8 @@
 ﻿namespace LootNet_API.Data;
 
 using LootNet_API.Models;
+using LootNet_API.Models.GameRun;
+using LootNet_API.Models.GameRun.EnemyGeneration;
 using LootNet_API.Models.Items;
 using LootNet_API.Models.Items.Generation;
 using LootNet_API.Models.Logs;
@@ -27,6 +29,8 @@ public class AppDbContext : DbContext
     public DbSet<InventoryItem> InventoryItems { get; set; }
     public DbSet<MarketInventoryItem> MarketInventoryItems { get; set; }
     public DbSet<RunInventoryItem> RunInventoryItems { get; set; }
+    public DbSet<Run> Runs { get; set; }
+    public DbSet<StageProfile> StageProfiles { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options) { }

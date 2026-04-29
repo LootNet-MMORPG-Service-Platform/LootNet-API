@@ -21,14 +21,16 @@ public class MobileController : ControllerBase
     private readonly IHubContext<GameHub> _hub;
     private readonly IItemGenerationService _itemGenerationService;
     private readonly IInventoryService _inventoryService;
+    private readonly IEquipmentService _equipmentService;
 
     public MobileController(AppDbContext context, IHubContext<GameHub> hub,
-        IItemGenerationService itemGenerationService, IInventoryService inventoryService)
+        IItemGenerationService itemGenerationService, IInventoryService inventoryService, IEquipmentService equipmentService)
     {
         _context = context;
         _hub = hub;
         _itemGenerationService = itemGenerationService;
         _inventoryService = inventoryService;
+        _equipmentService = equipmentService;
     }
 
     [HttpGet("me")]
@@ -128,14 +130,14 @@ public class MobileController : ControllerBase
     public async Task<IActionResult> GetEquipment()
     {
         var userId = User.GetUserId();
-        return Ok(await _inventoryService.GetEquipmentAsync(userId));
+        return Ok(await _equipmentService.GetEquipmentAsync(userId));
     }
 
     [HttpPost("equip/weapon/{slot}/{itemId}")]
     public async Task<IActionResult> EquipWeapon(int slot, Guid itemId)
     {
         var userId = User.GetUserId();
-        await _inventoryService.EquipWeaponAsync(userId, itemId, slot);
+        await _equipmentService.EquipWeaponAsync(userId, itemId, slot);
         return Ok();
     }
 
@@ -143,7 +145,7 @@ public class MobileController : ControllerBase
     public async Task<IActionResult> EquipArmor(Guid itemId)
     {
         var userId = User.GetUserId();
-        await _inventoryService.EquipArmorAsync(userId, itemId);
+        await _equipmentService.EquipArmorAsync(userId, itemId);
         return Ok();
     }
 
@@ -151,7 +153,7 @@ public class MobileController : ControllerBase
     public async Task<IActionResult> Unequip(Guid itemId)
     {
         var userId = User.GetUserId();
-        await _inventoryService.UnequipItemAsync(userId, itemId);
+        await _equipmentService.UnequipItemAsync(userId, itemId);
         return Ok();
     }
 }

@@ -14,11 +14,13 @@ public class AdminService : IAdminService
 {
     private readonly AppDbContext _context;
     private readonly IInventoryService _inventory;
+    private readonly IEquipmentService _equipment;
 
-    public AdminService(AppDbContext context, IInventoryService inventory)
+    public AdminService(AppDbContext context, IInventoryService inventory, IEquipmentService equipment)
     {
         _context = context;
         _inventory = inventory;
+        _equipment = equipment;
     }
 
     public async Task<PagedResultDTO<AdminUserListDTO>> GetUsersAsync(GetUsersQueryDTO query)
@@ -85,7 +87,7 @@ public class AdminService : IAdminService
 
     public async Task<EquipmentResponseDTO> GetUserEquipmentAsync(Guid userId)
     {
-        return await _inventory.GetEquipmentAsync(userId);
+        return await _equipment.GetEquipmentAsync(userId);
     }
 
     public async Task BlockUserAsync(Guid adminId, Guid userId, string reason, int? days)

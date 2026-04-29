@@ -3,8 +3,7 @@
 public enum ItemElementType
 {
     Fire,
-    Ice,
-    Lightning,
-    Poison,
-    Electro
+    Water,
+    Earth,
+    Air
 }

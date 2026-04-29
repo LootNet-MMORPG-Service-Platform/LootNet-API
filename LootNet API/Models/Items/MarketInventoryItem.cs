@@ -1,4 +1,4 @@
-﻿namespace LootNet_API.Models;
+﻿namespace LootNet_API.Models.Items;
 
 public class MarketInventoryItem
 {

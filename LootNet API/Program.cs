@@ -61,6 +61,7 @@ namespace LootNet_API
             builder.Services.AddScoped<IInventoryService, InventoryService>();
             builder.Services.AddScoped<IAdminService, AdminService>();
             builder.Services.AddScoped<IGenerationAdminService, GenerationAdminService>();
+            builder.Services.AddScoped<IEquipmentService, EquipmentService>();
             builder.Services.AddSignalR();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
@@ -93,9 +94,11 @@ namespace LootNet_API
             {
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-                db.Database.Migrate();
-
-                CreateSuperAdmin(db);
+                if (db.Database.IsRelational())
+                {
+                    db.Database.Migrate();
+                    CreateSuperAdmin(db);
+                }
             }
 
             app.UseHttpsRedirection();

@@ -55,6 +55,67 @@ public class ItemGenerationService : IItemGenerationService
         }
     }
 
+    public async Task<List<Item>> GenerateForEnemyAsync(Guid generationProfileId)
+    {
+        var profile = await _context.GenerationProfiles
+            .Include(p => p.TypeWeights)
+            .FirstOrDefaultAsync(p => p.Id == generationProfileId);
+
+        if (profile == null)
+            throw new InvalidOperationException("Generation profile not found");
+
+        if (!profile.TypeWeights.Any())
+            throw new InvalidOperationException("Profile has no TypeWeights");
+
+        var result = new List<Item>();
+        int remainingSlots = 4;
+
+        var orderedTypes = profile.TypeWeights
+            .OrderByDescending(x => x.Weight)
+            .ToList();
+
+        foreach (var typeWeight in orderedTypes)
+        {
+            if (remainingSlots <= 0)
+                break;
+
+            var category = SampleCategory(new List<ItemTypeWeight> { typeWeight });
+
+            if (category == ItemCategory.Weapon)
+            {
+                var rule = await GetEnemyRuleAsync(generationProfileId, ItemCategory.Weapon);
+
+                var weapon = GenerateWeapon(rule);
+
+                var isTwoHanded = weapon.WeaponType.IsTwoHanded();
+
+                if (isTwoHanded)
+                {
+                    if (remainingSlots < 2)
+                        continue;
+
+                    result.Add(weapon);
+                    remainingSlots -= 2;
+                }
+                else
+                {
+                    result.Add(weapon);
+                    remainingSlots -= 1;
+                }
+            }
+            else
+            {
+                var rule = await GetEnemyRuleAsync(generationProfileId, ItemCategory.Armor);
+
+                var armor = GenerateArmor(rule);
+
+                result.Add(armor);
+            }
+        }
+
+        return result;
+    }
+
     private ItemCategory SampleCategory(ICollection<ItemTypeWeight> typeWeights)
     {
         double total = typeWeights.Sum(t => t.Weight);
@@ -185,5 +246,27 @@ public class ItemGenerationService : IItemGenerationService
 
         var last = elem.Segments.Last();
         return _rand.NextDouble() * (last.Max - last.Min) + last.Min;
+    }
+    private async Task<ItemGenerationRule> GetEnemyRuleAsync(Guid generationProfileId, ItemCategory category)
+    {
+        var profile = await _context.GenerationProfiles
+            .Include(p => p.Rules)
+                .ThenInclude(r => r.Parameters)
+                    .ThenInclude(p => p.Segments)
+            .Include(p => p.Rules)
+                .ThenInclude(r => r.Elements)
+                    .ThenInclude(e => e.Segments)
+            .FirstOrDefaultAsync(p => p.Id == generationProfileId);
+
+        if (profile == null)
+            throw new InvalidOperationException("Generation profile not found");
+
+        var rule = profile.Rules
+            .FirstOrDefault(r => r.Category == category);
+
+        if (rule == null)
+            throw new InvalidOperationException("No rule for category in generation profile");
+
+        return rule;
     }
 }

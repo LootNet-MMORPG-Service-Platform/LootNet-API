@@ -57,7 +57,7 @@ public static class DbSeeder
             Id = Guid.NewGuid(),
             Category = ItemCategory.Weapon,
             ProfileId = profile.Id,
-            WeaponType = WeaponType.Axe,
+            WeaponType = WeaponType.Sword,
             IsFallback = true,
             Parameters = new List<ItemParameterSetting>
             {

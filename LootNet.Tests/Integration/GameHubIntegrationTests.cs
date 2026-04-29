@@ -49,7 +49,7 @@ public class GameHubIntegrationTests : IClassFixture<WebApplicationFactory<Progr
             {
                 Id = Guid.NewGuid(),
                 Username = "testuser",
-                PasswordHash = "fakehash",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("fakehash"),
                 Role = UserRole.Player,
                 Currency = 1000,
                 Equipment = new Equipment()
