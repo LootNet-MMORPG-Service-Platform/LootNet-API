@@ -18,4 +18,6 @@ public interface IEquipmentService
     void ApplyEnemyEquipment(Equipment equipment, List<Item> items);
     Task<WeaponDTO> GetWeapon(Guid? id);
     Task<ArmorDTO> GetArmor(Guid? id);
+    Task<Equipment?> GetEquipmentModelAsync(Guid userId);
+    Task<Weapon?> GetWeaponModelAsync(Guid id);
 }

@@ -11,8 +11,8 @@ using Xunit;
 
 public class InventoryServiceTests
 {
-    private AppDbContext CreateDb()
-        => TestDbContextFactory.Create();
+    private (AppDbContext db, SingleContextFactory factory) Create()
+        => DbHelper.Create();
 
     private async Task<User> SeedUser(AppDbContext db)
     {
@@ -21,7 +21,7 @@ public class InventoryServiceTests
         var user = new User
         {
             Id = userId,
-            Username = "player",
+            Username = $"player_{userId}",
             PasswordHash = "hash",
             Role = UserRole.Player,
             Currency = 1000,
@@ -33,8 +33,6 @@ public class InventoryServiceTests
         };
 
         db.Users.Add(user);
-        db.Equipments.Add(user.Equipment);
-
         await db.SaveChangesAsync();
 
         return user;
@@ -43,22 +41,14 @@ public class InventoryServiceTests
     [Fact]
     public async Task MoveToRun_ShouldMoveItem()
     {
-        var db = CreateDb();
+        var (db, factory) = Create();
         var user = await SeedUser(db);
-
         var itemId = Guid.NewGuid();
 
-        db.InventoryItems.Add(new InventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            ItemId = itemId
-        });
-
+        db.InventoryItems.Add(new InventoryItem { Id = Guid.NewGuid(), UserId = user.Id, ItemId = itemId });
         await db.SaveChangesAsync();
 
-        var service = new InventoryService(db);
-
+        var service = new InventoryService(factory);
         await service.MoveToRunAsync(user.Id, new List<Guid> { itemId });
 
         Assert.Empty(db.InventoryItems);
@@ -68,22 +58,14 @@ public class InventoryServiceTests
     [Fact]
     public async Task ReturnFromRun_ShouldRestoreInventory()
     {
-        var db = CreateDb();
+        var (db, factory) = Create();
         var user = await SeedUser(db);
-
         var itemId = Guid.NewGuid();
 
-        db.RunInventoryItems.Add(new RunInventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            ItemId = itemId
-        });
-
+        db.RunInventoryItems.Add(new RunInventoryItem { Id = Guid.NewGuid(), UserId = user.Id, ItemId = itemId });
         await db.SaveChangesAsync();
 
-        var service = new InventoryService(db);
-
+        var service = new InventoryService(factory);
         await service.ReturnFromRunAsync(user.Id);
 
         Assert.Single(db.InventoryItems);
@@ -93,22 +75,14 @@ public class InventoryServiceTests
     [Fact]
     public async Task MoveToMarket_ShouldMoveItem()
     {
-        var db = CreateDb();
+        var (db, factory) = Create();
         var user = await SeedUser(db);
-
         var itemId = Guid.NewGuid();
 
-        db.InventoryItems.Add(new InventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            ItemId = itemId
-        });
-
+        db.InventoryItems.Add(new InventoryItem { Id = Guid.NewGuid(), UserId = user.Id, ItemId = itemId });
         await db.SaveChangesAsync();
 
-        var service = new InventoryService(db);
-
+        var service = new InventoryService(factory);
         await service.MoveToMarketAsync(user.Id, itemId);
 
         Assert.Empty(db.InventoryItems);
@@ -118,22 +92,14 @@ public class InventoryServiceTests
     [Fact]
     public async Task ReturnFromMarket_ShouldRestoreInventory()
     {
-        var db = CreateDb();
+        var (db, factory) = Create();
         var user = await SeedUser(db);
-
         var itemId = Guid.NewGuid();
 
-        db.MarketInventoryItems.Add(new MarketInventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            ItemId = itemId
-        });
-
+        db.MarketInventoryItems.Add(new MarketInventoryItem { Id = Guid.NewGuid(), UserId = user.Id, ItemId = itemId });
         await db.SaveChangesAsync();
 
-        var service = new InventoryService(db);
-
+        var service = new InventoryService(factory);
         await service.ReturnFromMarketAsync(user.Id, itemId);
 
         Assert.Single(db.InventoryItems);
@@ -143,24 +109,15 @@ public class InventoryServiceTests
     [Fact]
     public async Task TransferFromSellerToBuyer_ShouldMoveOwnership()
     {
-        var db = CreateDb();
-
+        var (db, factory) = Create();
         var seller = await SeedUser(db);
         var buyer = await SeedUser(db);
-
         var itemId = Guid.NewGuid();
 
-        db.MarketInventoryItems.Add(new MarketInventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = seller.Id,
-            ItemId = itemId
-        });
-
+        db.MarketInventoryItems.Add(new MarketInventoryItem { Id = Guid.NewGuid(), UserId = seller.Id, ItemId = itemId });
         await db.SaveChangesAsync();
 
-        var service = new InventoryService(db);
-
+        var service = new InventoryService(factory);
         await service.TransferFromSellerToBuyerAsync(seller.Id, buyer.Id, itemId);
 
         Assert.Empty(db.MarketInventoryItems);
@@ -170,11 +127,10 @@ public class InventoryServiceTests
     [Fact]
     public async Task MoveToRun_ShouldThrow_WhenItemNotInInventory()
     {
-        var db = CreateDb();
+        var (db, factory) = Create();
         var user = await SeedUser(db);
 
-        var service = new InventoryService(db);
-
+        var service = new InventoryService(factory);
         await service.MoveToRunAsync(user.Id, new List<Guid> { Guid.NewGuid() });
 
         Assert.Empty(db.RunInventoryItems);
@@ -183,68 +139,45 @@ public class InventoryServiceTests
     [Fact]
     public async Task EquipWeaponFromRun_ShouldEquip()
     {
-        var db = CreateDb();
+        var (db, factory) = Create();
         var user = await SeedUser(db);
-
         var itemId = Guid.NewGuid();
 
-        db.RunInventoryItems.Add(new RunInventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            ItemId = itemId
-        });
-
-        db.Weapons.Add(new Weapon
-        {
-            Id = itemId,
-            Name = "Sword",
-            Category = ItemCategory.Weapon,
-            WeaponType = WeaponType.Sword
-        });
-
+        db.RunInventoryItems.Add(new RunInventoryItem { Id = Guid.NewGuid(), UserId = user.Id, ItemId = itemId });
+        db.Weapons.Add(new Weapon { Id = itemId, Name = "Sword", Category = ItemCategory.Weapon, WeaponType = WeaponType.Sword });
         await db.SaveChangesAsync();
 
-        var service = new InventoryService(db);
+        var equipmentService = new EquipmentService(factory);
+        await equipmentService.EquipWeaponFromRunAsync(user.Id, itemId, 1);
 
-        await service.EquipWeaponFromRunAsync(user.Id, itemId, 1);
-
-        var eq = await db.Equipments.FirstAsync(x => x.UserId == user.Id);
-
+        var eq = await db.Equipments.AsNoTracking().FirstAsync(x => x.UserId == user.Id);
         Assert.Equal(itemId, eq.WeaponSlot1Id);
     }
 
     [Fact]
-    public async Task EquipWeaponFromRun_ShouldThrow_WhenNotInRun()
+    public async Task EquipWeaponFromRun_ShouldThrow_WhenItemNotInRunInventory()
     {
-        var db = CreateDb();
+        var (db, factory) = Create();
         var user = await SeedUser(db);
+        var itemId = Guid.NewGuid();
 
-        var service = new InventoryService(db);
+        var equipmentService = new EquipmentService(factory);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.EquipWeaponFromRunAsync(user.Id, Guid.NewGuid(), 1));
+            equipmentService.EquipWeaponFromRunAsync(user.Id, itemId, 1));
     }
 
     [Fact]
     public async Task GetRunInventory_ShouldReturnItems()
     {
-        var db = CreateDb();
+        var (db, factory) = Create();
         var user = await SeedUser(db);
-
         var itemId = Guid.NewGuid();
 
-        db.RunInventoryItems.Add(new RunInventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            ItemId = itemId
-        });
-
+        db.RunInventoryItems.Add(new RunInventoryItem { Id = Guid.NewGuid(), UserId = user.Id, ItemId = itemId });
         await db.SaveChangesAsync();
 
-        var service = new InventoryService(db);
-
+        var service = new InventoryService(factory);
         var result = await service.GetRunInventoryAsync(user.Id);
 
         Assert.NotNull(result);
@@ -253,22 +186,14 @@ public class InventoryServiceTests
     [Fact]
     public async Task GetMarketInventory_ShouldReturnItems()
     {
-        var db = CreateDb();
+        var (db, factory) = Create();
         var user = await SeedUser(db);
-
         var itemId = Guid.NewGuid();
 
-        db.MarketInventoryItems.Add(new MarketInventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            ItemId = itemId
-        });
-
+        db.MarketInventoryItems.Add(new MarketInventoryItem { Id = Guid.NewGuid(), UserId = user.Id, ItemId = itemId });
         await db.SaveChangesAsync();
 
-        var service = new InventoryService(db);
-
+        var service = new InventoryService(factory);
         var result = await service.GetMarketInventoryAsync(user.Id);
 
         Assert.NotNull(result);

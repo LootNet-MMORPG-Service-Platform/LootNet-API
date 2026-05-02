@@ -8,6 +8,7 @@ using LootNet_API.DTO.Admin;
 using LootNet_API.DTO.Items;
 using LootNet_API.Enums;
 using LootNet_API.Models;
+using LootNet_API.Models.Items;
 using LootNet_API.Services;
 using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +30,11 @@ public class AdminServiceTests
         return new FakeInventoryService();
     }
 
+    private IEquipmentService CreateEquipmentStub()
+    {
+        return new FakeEquipmentService();
+    }
+
     [Fact]
     public async Task GetUsers_ReturnsPagedSortedFilteredData()
     {
@@ -42,7 +48,7 @@ public class AdminServiceTests
 
         await db.SaveChangesAsync();
 
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         var result = await service.GetUsersAsync(new GetUsersQueryDTO
         {
@@ -68,7 +74,7 @@ public class AdminServiceTests
 
         await db.SaveChangesAsync();
 
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         var result = await service.GetUsersAsync(new GetUsersQueryDTO
         {
@@ -89,7 +95,7 @@ public class AdminServiceTests
         db.Users.Add(new User { Id = Guid.NewGuid(), Username = "dragonSlayer", PasswordHash = "h", Role = UserRole.Player, Currency = 100, Equipment = new Equipment() });
         await db.SaveChangesAsync();
 
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         var result = await service.GetUsersAsync(new GetUsersQueryDTO
         {
@@ -119,7 +125,7 @@ public class AdminServiceTests
 
         await db.SaveChangesAsync();
 
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         var result = await service.GetUsersAsync(new GetUsersQueryDTO
         {
@@ -153,7 +159,7 @@ public class AdminServiceTests
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         var result = await service.GetUserAsync(user.Id);
 
@@ -182,7 +188,7 @@ public class AdminServiceTests
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         await service.BlockUserAsync(adminId, user.Id, "spam", 3);
 
@@ -216,7 +222,7 @@ public class AdminServiceTests
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         await service.UnblockUserAsync(adminId, user.Id);
 
@@ -247,7 +253,7 @@ public class AdminServiceTests
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         await service.ChangeRoleAsync(adminId, user.Id, UserRole.Admin);
 
@@ -261,7 +267,7 @@ public class AdminServiceTests
     public async Task GetUserInventory_ReturnsEmptyStub()
     {
         using var db = CreateDb();
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         var result = await service.GetUserInventoryAsync(Guid.NewGuid());
 
@@ -272,7 +278,7 @@ public class AdminServiceTests
     public async Task GetUserRunInventory_ReturnsEmptyStub()
     {
         using var db = CreateDb();
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         var result = await service.GetUserRunInventoryAsync(Guid.NewGuid());
 
@@ -283,7 +289,7 @@ public class AdminServiceTests
     public async Task GetUserMarketInventory_ReturnsEmptyStub()
     {
         using var db = CreateDb();
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         var result = await service.GetUserMarketInventoryAsync(Guid.NewGuid());
 
@@ -294,7 +300,7 @@ public class AdminServiceTests
     public async Task GetUserEquipment_ReturnsStub()
     {
         using var db = CreateDb();
-        var service = new AdminService(db, CreateInventoryStub());
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
 
         var result = await service.GetUserEquipmentAsync(Guid.NewGuid());
 
@@ -303,20 +309,36 @@ public class AdminServiceTests
 
     private class FakeInventoryService : IInventoryService
     {
-        public Task<ItemCollectionDTO> GetItemsAsync(Guid userId)
-            => Task.FromResult(new ItemCollectionDTO());
+        public Task<ItemCollectionDTO> GetItemsAsync(Guid userId) => Task.FromResult(new ItemCollectionDTO());
+        public Task<ItemCollectionDTO> GetInventoryAsync(Guid userId) => Task.FromResult(new ItemCollectionDTO());
+        public Task<ItemCollectionDTO> GetRunInventoryAsync(Guid userId) => Task.FromResult(new ItemCollectionDTO());
+        public Task<ItemCollectionDTO> GetMarketInventoryAsync(Guid userId) => Task.FromResult(new ItemCollectionDTO());
+        public Task<EquipmentResponseDTO> GetEquipmentAsync(Guid userId) => Task.FromResult(new EquipmentResponseDTO());
+        public Task EquipWeaponAsync(Guid userId, Guid itemId, int slot) => throw new NotSupportedException();
+        public Task EquipWeaponFromRunAsync(Guid userId, Guid itemId, int slot) => throw new NotSupportedException();
+        public Task EquipArmorAsync(Guid userId, Guid itemId) => throw new NotSupportedException();
+        public Task EquipArmorFromRunAsync(Guid userId, Guid itemId) => throw new NotSupportedException();
+        public Task UnequipItemAsync(Guid userId, Guid itemId) => throw new NotSupportedException();
+        public Task MoveToRunAsync(Guid userId, List<Guid> itemIds) => throw new NotSupportedException();
+        public Task ReturnFromRunAsync(Guid userId) => throw new NotSupportedException();
+        public Task MoveToMarketAsync(Guid userId, Guid itemId) => throw new NotSupportedException();
+        public Task ReturnFromMarketAsync(Guid userId, Guid itemId) => throw new NotSupportedException();
+        public Task AddToInventoryAsync(Guid userId, Guid itemId) => throw new NotSupportedException();
+        public Task AddToRunInventoryAsync(Guid userId, Guid itemId) => throw new NotSupportedException();
+        public Task TransferFromSellerToBuyerAsync(Guid sellerId, Guid buyerId, Guid itemId) => throw new NotSupportedException();
+        public Task LoseRunItemsAsync(Guid Id) => throw new NotSupportedException();
+    }
 
-        public Task<ItemCollectionDTO> GetInventoryAsync(Guid userId)
-            => Task.FromResult(new ItemCollectionDTO());
-
-        public Task<ItemCollectionDTO> GetRunInventoryAsync(Guid userId)
-            => Task.FromResult(new ItemCollectionDTO());
-
-        public Task<ItemCollectionDTO> GetMarketInventoryAsync(Guid userId)
-            => Task.FromResult(new ItemCollectionDTO());
-
+    private class FakeEquipmentService : IEquipmentService
+    {
         public Task<EquipmentResponseDTO> GetEquipmentAsync(Guid userId)
             => Task.FromResult(new EquipmentResponseDTO());
+
+        public Task<WeaponDTO?> GetWeapon(Guid? id)
+            => Task.FromResult<WeaponDTO?>(null);
+
+        public Task<ArmorDTO?> GetArmor(Guid? id)
+            => Task.FromResult<ArmorDTO?>(null);
 
         public Task EquipWeaponAsync(Guid userId, Guid itemId, int slot)
             => throw new NotSupportedException();
@@ -332,26 +354,8 @@ public class AdminServiceTests
 
         public Task UnequipItemAsync(Guid userId, Guid itemId)
             => throw new NotSupportedException();
-
-        public Task MoveToRunAsync(Guid userId, List<Guid> itemIds)
-            => throw new NotSupportedException();
-
-        public Task ReturnFromRunAsync(Guid userId)
-            => throw new NotSupportedException();
-
-        public Task MoveToMarketAsync(Guid userId, Guid itemId)
-            => throw new NotSupportedException();
-
-        public Task ReturnFromMarketAsync(Guid userId, Guid itemId)
-            => throw new NotSupportedException();
-
-        public Task AddToInventoryAsync(Guid userId, Guid itemId)
-            => throw new NotSupportedException();
-
-        public Task AddToRunInventoryAsync(Guid userId, Guid itemId)
-            => throw new NotSupportedException();
-
-        public Task TransferFromSellerToBuyerAsync(Guid sellerId, Guid buyerId, Guid itemId)
-            => throw new NotSupportedException();
+        public Task<Weapon?> GetWeaponModelAsync(Guid id) => throw new NotSupportedException();
+        public Task<Equipment?> GetEquipmentModelAsync(Guid id) => throw new NotSupportedException();
+        public void  ApplyEnemyEquipment(Equipment equipment, List<Item> list) => throw new NotSupportedException();
     }
 }

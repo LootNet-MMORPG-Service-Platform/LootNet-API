@@ -2,5 +2,6 @@
 
 public class FinishTurnDTO
 {
-    public Guid TargetEnemyId { get; set; }
+    public Guid BattleId { get; set; }
+    public required TurnActionDTO Action { get; set; }
 }

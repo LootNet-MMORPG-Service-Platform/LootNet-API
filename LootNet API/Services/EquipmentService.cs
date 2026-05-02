@@ -8,16 +8,17 @@ using Microsoft.EntityFrameworkCore;
 
 public class EquipmentService : IEquipmentService
 {
-    private readonly AppDbContext _context;
+    private readonly IDbContextFactory<AppDbContext> _dbFactory;
 
-    public EquipmentService(AppDbContext context)
+    public EquipmentService(IDbContextFactory<AppDbContext> dbFactory)
     {
-        _context = context;
+        _dbFactory = dbFactory;
     }
 
     public async Task<EquipmentResponseDTO> GetEquipmentAsync(Guid userId)
     {
-        var eq = await _context.Equipments.FirstOrDefaultAsync(x => x.UserId == userId);
+        await using var db = _dbFactory.CreateDbContext();
+        var eq = await db.Equipments.FirstOrDefaultAsync(x => x.UserId == userId);
 
         if (eq == null)
             return new EquipmentResponseDTO();
@@ -39,77 +40,82 @@ public class EquipmentService : IEquipmentService
 
     public async Task EquipWeaponAsync(Guid userId, Guid itemId, int slot)
     {
-        var exists = await _context.InventoryItems
+        await using var db = _dbFactory.CreateDbContext();
+        var exists = await db.InventoryItems
             .AnyAsync(x => x.UserId == userId && x.ItemId == itemId);
 
         if (!exists)
             throw new InvalidOperationException("Item not in inventory");
 
-        var weapon = await _context.Weapons.FirstOrDefaultAsync(x => x.Id == itemId);
+        var weapon = await db.Weapons.FirstOrDefaultAsync(x => x.Id == itemId);
         if (weapon == null)
             throw new InvalidOperationException("Weapon not found");
 
-        var eq = await _context.Equipments.FirstAsync(x => x.UserId == userId);
+        var eq = await db.Equipments.FirstAsync(x => x.UserId == userId);
 
         ApplyWeapon(eq, weapon, slot);
 
-        await _context.SaveChangesAsync();
+        await db.SaveChangesAsync();
     }
 
     public async Task EquipWeaponFromRunAsync(Guid userId, Guid itemId, int slot)
     {
-        var exists = await _context.RunInventoryItems
+        await using var db = _dbFactory.CreateDbContext();
+        var exists = await db.RunInventoryItems
             .AnyAsync(x => x.UserId == userId && x.ItemId == itemId);
 
         if (!exists)
             throw new InvalidOperationException("Item not in run inventory");
 
-        var weapon = await _context.Weapons.FirstAsync(x => x.Id == itemId);
-        var eq = await _context.Equipments.FirstAsync(x => x.UserId == userId);
+        var weapon = await db.Weapons.FirstAsync(x => x.Id == itemId);
+        var eq = await db.Equipments.FirstAsync(x => x.UserId == userId);
 
         ApplyWeapon(eq, weapon, slot);
 
-        await _context.SaveChangesAsync();
+        await db.SaveChangesAsync();
     }
 
     public async Task EquipArmorAsync(Guid userId, Guid itemId)
     {
-        var exists = await _context.InventoryItems
+        await using var db = _dbFactory.CreateDbContext();
+        var exists = await db.InventoryItems
             .AnyAsync(x => x.UserId == userId && x.ItemId == itemId);
 
         if (!exists)
             throw new InvalidOperationException("Item not in inventory");
 
-        var armor = await _context.Armors.FirstOrDefaultAsync(x => x.Id == itemId);
+        var armor = await db.Armors.FirstOrDefaultAsync(x => x.Id == itemId);
         if (armor == null)
             throw new InvalidOperationException("Armor not found");
 
-        var eq = await _context.Equipments.FirstAsync(x => x.UserId == userId);
+        var eq = await db.Equipments.FirstAsync(x => x.UserId == userId);
 
         SetArmorSlot(eq, armor.ArmorType, itemId);
 
-        await _context.SaveChangesAsync();
+        await db.SaveChangesAsync();
     }
 
     public async Task EquipArmorFromRunAsync(Guid userId, Guid itemId)
     {
-        var exists = await _context.RunInventoryItems
+        await using var db = _dbFactory.CreateDbContext();
+        var exists = await db.RunInventoryItems
             .AnyAsync(x => x.UserId == userId && x.ItemId == itemId);
 
         if (!exists)
             throw new InvalidOperationException();
 
-        var armor = await _context.Armors.FirstAsync(x => x.Id == itemId);
-        var eq = await _context.Equipments.FirstAsync(x => x.UserId == userId);
+        var armor = await db.Armors.FirstAsync(x => x.Id == itemId);
+        var eq = await db.Equipments.FirstAsync(x => x.UserId == userId);
 
         SetArmorSlot(eq, armor.ArmorType, itemId);
 
-        await _context.SaveChangesAsync();
+        await db.SaveChangesAsync();
     }
 
     public async Task UnequipItemAsync(Guid userId, Guid itemId)
     {
-        var eq = await _context.Equipments.FirstOrDefaultAsync(x => x.UserId == userId);
+        await using var db = _dbFactory.CreateDbContext();
+        var eq = await db.Equipments.FirstOrDefaultAsync(x => x.UserId == userId);
         if (eq == null) return;
 
         var props = typeof(Equipment).GetProperties();
@@ -124,7 +130,7 @@ public class EquipmentService : IEquipmentService
             }
         }
 
-        await _context.SaveChangesAsync();
+        await db.SaveChangesAsync();
     }
 
     public void ApplyEnemyEquipment(Equipment equipment, List<Item> items)
@@ -192,12 +198,13 @@ public class EquipmentService : IEquipmentService
         SetWeaponSlot(eq, itemId, 4);
     }
 
-    private void ClearIfTwoHand(Guid? existingWeaponId, Equipment eq)
+    private async Task ClearIfTwoHand(Guid? existingWeaponId, Equipment eq)
     {
+        await using var db = _dbFactory.CreateDbContext();
         if (!existingWeaponId.HasValue)
             return;
 
-        var weapon = _context.Weapons.FirstOrDefault(x => x.Id == existingWeaponId.Value);
+        var weapon = db.Weapons.FirstOrDefault(x => x.Id == existingWeaponId.Value);
 
         if (weapon == null || !weapon.WeaponType.IsTwoHanded())
             return;
@@ -215,9 +222,10 @@ public class EquipmentService : IEquipmentService
 
     public async Task<WeaponDTO?> GetWeapon(Guid? id)
     {
+        await using var db = _dbFactory.CreateDbContext();
         if (!id.HasValue) return null;
 
-        var item = await _context.Weapons
+        var item = await db.Weapons
             .Include(x => x.Elements)
             .FirstOrDefaultAsync(x => x.Id == id.Value);
 
@@ -238,9 +246,10 @@ public class EquipmentService : IEquipmentService
 
     public async Task<ArmorDTO?> GetArmor(Guid? id)
     {
+        await using var db = _dbFactory.CreateDbContext();
         if (!id.HasValue) return null;
 
-        var item = await _context.Armors
+        var item = await db.Armors
             .Include(x => x.Elements)
             .FirstOrDefaultAsync(x => x.Id == id.Value);
 
@@ -282,5 +291,21 @@ public class EquipmentService : IEquipmentService
             case ArmorType.Boots: eq.BootsId = itemId; break;
             default: throw new InvalidOperationException();
         }
+    }
+    public async Task<Equipment?> GetEquipmentModelAsync(Guid userId)
+    {
+        await using var db = _dbFactory.CreateDbContext();
+        return await db.Equipments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.UserId == userId);
+    }
+
+    public async Task<Weapon?> GetWeaponModelAsync(Guid id)
+    {
+        await using var db = _dbFactory.CreateDbContext();
+        return await db.Weapons
+            .AsNoTracking()
+            .Include(x => x.Elements)
+            .FirstOrDefaultAsync(x => x.Id == id);
     }
 }

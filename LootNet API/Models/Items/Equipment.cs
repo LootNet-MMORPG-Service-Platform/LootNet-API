@@ -4,7 +4,8 @@ public class Equipment
 {
     public Guid Id { get; set; }
 
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+    public Guid? BattleEnemyId { get; set; }
 
     public Guid? HeadId { get; set; }
     public Guid? BodyId { get; set; }

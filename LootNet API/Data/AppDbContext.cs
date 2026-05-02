@@ -31,6 +31,11 @@ public class AppDbContext : DbContext
     public DbSet<RunInventoryItem> RunInventoryItems { get; set; }
     public DbSet<Run> Runs { get; set; }
     public DbSet<StageProfile> StageProfiles { get; set; }
+    public DbSet<Battle> Battles { get; set; }
+    public DbSet<BattleEnemy> BattleEnemies { get; set; }
+    public DbSet<StageScenario> StageScenarios { get; set; }
+    public DbSet<ScenarioSlot> ScenarioSlots { get; set; }
+    public DbSet<EnemyClassProfile> EnemyClassProfiles { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options) { }
@@ -43,6 +48,7 @@ public class AppDbContext : DbContext
             .HasOne(u => u.Equipment)
             .WithOne()
             .HasForeignKey<Equipment>(e => e.UserId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<GenerationProfile>()
@@ -148,5 +154,34 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<RunInventoryItem>()
             .HasKey(x => x.Id);
+        modelBuilder.Entity<Run>()
+            .HasMany(x => x.Battles)
+            .WithOne()
+            .HasForeignKey(x => x.RunId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Battle>()
+            .HasMany(x => x.Enemies)
+            .WithOne()
+            .HasForeignKey(x => x.BattleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<BattleEnemy>()
+            .HasOne(x => x.Equipment)
+            .WithOne()
+            .HasForeignKey<Equipment>(e => e.BattleEnemyId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<StageProfile>()
+            .HasMany(x => x.Scenarios)
+            .WithOne()
+            .HasForeignKey(x => x.StageProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StageScenario>()
+            .HasMany(x => x.Slots)
+            .WithOne()
+            .HasForeignKey(x => x.ScenarioId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -44,7 +44,7 @@ public class CombatHandsService
         if (weapons == null || weapons.Count == 0)
             return;
 
-        //var ordered = ApplyWeaponPriority(weapons);
+        weapons = SortWeaponsForEnemyClass(weapons, enemy.Class);
 
         var first = weapons[0];
 
@@ -120,5 +120,53 @@ public class CombatHandsService
     {
         target.LeftHandItemId = weaponId;
         target.RightHandItemId = weaponId;
+    }
+    private List<Weapon> SortWeaponsForEnemyClass(List<Weapon> weapons, EnemyClass enemyClass)
+    {
+        if (weapons == null || weapons.Count == 0)
+            return weapons;
+
+        return enemyClass switch
+        {
+            EnemyClass.Archer => weapons
+                .OrderByDescending(w => w.WeaponType == WeaponType.Bow)
+                .ThenByDescending(w => w.WeaponType.IsRanged())
+                .ThenByDescending(w => w.WeaponType.IsMelee())
+                .ToList(),
+
+            EnemyClass.Crossbow => weapons
+                .OrderByDescending(w => w.WeaponType == WeaponType.Crossbow)
+                .ThenByDescending(w => w.WeaponType.IsRanged())
+                .ThenByDescending(w => w.WeaponType.IsMelee())
+                .ToList(),
+
+            EnemyClass.Skirmisher => weapons
+                .OrderByDescending(w => w.WeaponType.IsRanged())
+                .ThenByDescending(w => w.WeaponType.IsMelee())
+                .ToList(),
+
+            EnemyClass.Polearm => weapons
+                .OrderByDescending(w => w.WeaponType == WeaponType.Polearm)
+                .ThenByDescending(w => w.WeaponType.IsMelee())
+                .ThenByDescending(w => w.WeaponType.IsRanged())
+                .ToList(),
+
+            EnemyClass.TwoHand => weapons
+                .OrderByDescending(w => w.WeaponType.IsTwoHanded())
+                .ThenByDescending(w => w.WeaponType.IsMelee())
+                .ToList(),
+
+            EnemyClass.DualWield => weapons
+                .OrderByDescending(w => !w.WeaponType.IsTwoHanded())
+                .ThenByDescending(w => w.WeaponType.IsMelee())
+                .ToList(),
+
+            EnemyClass.Tank => weapons
+                .OrderByDescending(w => w.WeaponType.IsMelee())
+                .ThenByDescending(w => w.WeaponType.IsTwoHanded())
+                .ToList(),
+
+            _ => weapons
+        };
     }
 }

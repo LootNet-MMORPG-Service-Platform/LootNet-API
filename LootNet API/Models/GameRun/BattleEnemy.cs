@@ -1,10 +1,14 @@
-﻿namespace LootNet_API.Models.GameRun;
+﻿using LootNet_API.Enums;
+
+namespace LootNet_API.Models.GameRun;
 
 public class BattleEnemy
 {
     public Guid Id { get; set; }
 
     public Guid BattleId { get; set; }
+
+    public EnemyClass Class { get; set; }
 
     public int Position { get; set; }
 

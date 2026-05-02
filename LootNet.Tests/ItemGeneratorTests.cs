@@ -114,7 +114,7 @@ public class ItemGeneratorTests
         {
             Id = Guid.NewGuid(),
             Category = ItemCategory.Weapon,
-            WeaponType = WeaponType.Axe,
+            WeaponType = WeaponType.Sword,
             IsFallback = true,
             Parameters = new List<ItemParameterSetting>
             {
@@ -148,7 +148,7 @@ public class ItemGeneratorTests
         var item = await generator.GenerateItemAsync(user.Id) as Weapon;
 
         Assert.NotNull(item);
-        Assert.Equal(WeaponType.Axe, item.WeaponType);
+        Assert.Equal(WeaponType.Sword, item.WeaponType);
         Assert.InRange(item.Cut, 1, 2);
     }
 
@@ -231,7 +231,7 @@ public class ItemGeneratorTests
                 new()
                 {
                     Id = Guid.NewGuid(),
-                    ElementType = ItemElementType.Ice,
+                    ElementType = ItemElementType.Fire,
                     Segments = new List<DistributionSegment> { new() { Min = 2, Max = 4, Weight = 1 } }
                 }
             }

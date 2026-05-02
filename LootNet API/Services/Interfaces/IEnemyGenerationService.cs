@@ -4,5 +4,5 @@ namespace LootNet_API.Services.Interfaces;
 
 public interface IEnemyGenerationService
 {
-    Task<List<BattleEnemy>> GenerateAsync(int stageIndex);
+    Task<List<BattleEnemy>> GenerateEnemiesAsync(int stageIndex);
 }

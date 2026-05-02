@@ -1,211 +1,168 @@
 ﻿using LootNet_API.Data;
 using LootNet_API.DTO.Items;
-using LootNet_API.Enums;
-using LootNet_API.Models;
 using LootNet_API.Models.Items;
 using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 public class InventoryService : IInventoryService
 {
-    private readonly AppDbContext _context;
+    private readonly IDbContextFactory<AppDbContext> _dbFactory;
 
-    public InventoryService(AppDbContext context)
+    public InventoryService(IDbContextFactory<AppDbContext> dbFactory)
     {
-        _context = context;
+        _dbFactory = dbFactory;
     }
 
     public async Task MoveToRunAsync(Guid userId, List<Guid> itemIds)
     {
-        var items = await _context.InventoryItems
+        await using var db = _dbFactory.CreateDbContext();
+
+        var items = await db.InventoryItems
             .Where(x => x.UserId == userId && itemIds.Contains(x.ItemId))
             .ToListAsync();
 
         foreach (var i in items)
-        {
-            _context.RunInventoryItems.Add(new RunInventoryItem
-            {
-                Id = Guid.NewGuid(),
-                UserId = i.UserId,
-                ItemId = i.ItemId
-            });
-        }
+            db.RunInventoryItems.Add(new RunInventoryItem { Id = Guid.NewGuid(), UserId = i.UserId, ItemId = i.ItemId });
 
-        _context.InventoryItems.RemoveRange(items);
-
-        await _context.SaveChangesAsync();
+        db.InventoryItems.RemoveRange(items);
+        await db.SaveChangesAsync();
     }
 
     public async Task ReturnFromRunAsync(Guid userId)
     {
-        var items = await _context.RunInventoryItems
+        await using var db = _dbFactory.CreateDbContext();
+
+        var items = await db.RunInventoryItems
             .Where(x => x.UserId == userId)
             .ToListAsync();
 
         foreach (var i in items)
+            db.InventoryItems.Add(new InventoryItem { Id = Guid.NewGuid(), UserId = i.UserId, ItemId = i.ItemId });
+
+        db.RunInventoryItems.RemoveRange(items);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task LoseRunItemsAsync(Guid userId)
+    {
+        await using var db = _dbFactory.CreateDbContext();
+
+        var runItemIds = await db.RunInventoryItems
+            .Where(x => x.UserId == userId)
+            .Select(x => x.ItemId)
+            .ToListAsync();
+
+        var equipment = await db.Equipments.FirstAsync(x => x.UserId == userId);
+
+        var equippedItemIds = new[]
         {
-            _context.InventoryItems.Add(new InventoryItem
-            {
-                Id = Guid.NewGuid(),
-                UserId = i.UserId,
-                ItemId = i.ItemId
-            });
-        }
+            equipment.HeadId, equipment.BodyId, equipment.GlovesId,
+            equipment.LegsId, equipment.BootsId, equipment.WeaponSlot1Id,
+            equipment.WeaponSlot2Id, equipment.WeaponSlot3Id, equipment.WeaponSlot4Id
+        }.Where(x => x.HasValue).Select(x => x!.Value);
 
-        _context.RunInventoryItems.RemoveRange(items);
+        equipment.HeadId = equipment.BodyId = equipment.GlovesId =
+        equipment.LegsId = equipment.BootsId = equipment.WeaponSlot1Id =
+        equipment.WeaponSlot2Id = equipment.WeaponSlot3Id = equipment.WeaponSlot4Id = null;
 
-        await _context.SaveChangesAsync();
+        var allItemIds = runItemIds.Concat(equippedItemIds).Distinct().ToList();
+
+        db.RunInventoryItems.RemoveRange(db.RunInventoryItems.Where(x => x.UserId == userId));
+
+        var weapons = await db.Weapons.Where(x => allItemIds.Contains(x.Id)).ToListAsync();
+        var armors = await db.Armors.Where(x => allItemIds.Contains(x.Id)).ToListAsync();
+
+        db.Weapons.RemoveRange(weapons);
+        db.Armors.RemoveRange(armors);
+
+        await db.SaveChangesAsync();
     }
 
     public async Task MoveToMarketAsync(Guid userId, Guid itemId)
     {
-        var item = await _context.InventoryItems
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.ItemId == itemId);
+        await using var db = _dbFactory.CreateDbContext();
 
-        if (item == null)
-            throw new InvalidOperationException("Item not in inventory");
+        var item = await db.InventoryItems
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.ItemId == itemId)
+            ?? throw new InvalidOperationException("Item not in inventory");
 
-        _context.MarketInventoryItems.Add(new MarketInventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            ItemId = itemId
-        });
-
-        _context.InventoryItems.Remove(item);
-
-        await _context.SaveChangesAsync();
+        db.MarketInventoryItems.Add(new MarketInventoryItem { Id = Guid.NewGuid(), UserId = userId, ItemId = itemId });
+        db.InventoryItems.Remove(item);
+        await db.SaveChangesAsync();
     }
 
     public async Task ReturnFromMarketAsync(Guid userId, Guid itemId)
     {
-        var item = await _context.MarketInventoryItems
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.ItemId == itemId);
+        await using var db = _dbFactory.CreateDbContext();
 
-        if (item == null)
-            throw new InvalidOperationException();
+        var item = await db.MarketInventoryItems
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.ItemId == itemId)
+            ?? throw new InvalidOperationException();
 
-        _context.InventoryItems.Add(new InventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            ItemId = itemId
-        });
-
-        _context.MarketInventoryItems.Remove(item);
-
-        await _context.SaveChangesAsync();
+        db.InventoryItems.Add(new InventoryItem { Id = Guid.NewGuid(), UserId = userId, ItemId = itemId });
+        db.MarketInventoryItems.Remove(item);
+        await db.SaveChangesAsync();
     }
 
     public async Task TransferFromSellerToBuyerAsync(Guid sellerId, Guid buyerId, Guid itemId)
     {
-        var listing = await _context.MarketInventoryItems
-            .FirstOrDefaultAsync(x => x.UserId == sellerId && x.ItemId == itemId);
+        await using var db = _dbFactory.CreateDbContext();
 
-        if (listing == null)
-            throw new InvalidOperationException();
+        var listing = await db.MarketInventoryItems
+            .FirstOrDefaultAsync(x => x.UserId == sellerId && x.ItemId == itemId)
+            ?? throw new InvalidOperationException();
 
-        _context.MarketInventoryItems.Remove(listing);
-
-        _context.InventoryItems.Add(new InventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = buyerId,
-            ItemId = itemId
-        });
-
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<ItemCollectionDTO> GetItemsAsync(Guid userId)
-    {
-        var itemIds = await _context.InventoryItems
-            .Where(x => x.UserId == userId)
-            .Select(x => x.ItemId)
-            .ToListAsync();
-
-        var weapons = await _context.Weapons
-            .Where(x => itemIds.Contains(x.Id))
-            .Include(x => x.Elements)
-            .ToListAsync();
-
-        var armors = await _context.Armors
-            .Where(x => itemIds.Contains(x.Id))
-            .Include(x => x.Elements)
-            .ToListAsync();
-
-        return new ItemCollectionDTO
-        {
-            Weapons = weapons.Select(MapWeapon).ToList(),
-            Armors = armors.Select(MapArmor).ToList()
-        };
+        db.MarketInventoryItems.Remove(listing);
+        db.InventoryItems.Add(new InventoryItem { Id = Guid.NewGuid(), UserId = buyerId, ItemId = itemId });
+        await db.SaveChangesAsync();
     }
 
     public async Task<ItemCollectionDTO> GetInventoryAsync(Guid userId)
     {
-        var ids = await _context.InventoryItems
-            .Where(x => x.UserId == userId)
-            .Select(x => x.ItemId)
-            .ToListAsync();
-
-        return await LoadItems(ids);
+        await using var db = _dbFactory.CreateDbContext();
+        var ids = await db.InventoryItems.Where(x => x.UserId == userId).Select(x => x.ItemId).ToListAsync();
+        return await LoadItems(db, ids);
     }
 
     public async Task<ItemCollectionDTO> GetRunInventoryAsync(Guid userId)
     {
-        var ids = await _context.RunInventoryItems
-            .Where(x => x.UserId == userId)
-            .Select(x => x.ItemId)
-            .ToListAsync();
-
-        return await LoadItems(ids);
+        await using var db = _dbFactory.CreateDbContext();
+        var ids = await db.RunInventoryItems.Where(x => x.UserId == userId).Select(x => x.ItemId).ToListAsync();
+        return await LoadItems(db, ids);
     }
 
     public async Task<ItemCollectionDTO> GetMarketInventoryAsync(Guid userId)
     {
-        var ids = await _context.MarketInventoryItems
-            .Where(x => x.UserId == userId)
-            .Select(x => x.ItemId)
-            .ToListAsync();
+        await using var db = _dbFactory.CreateDbContext();
+        var ids = await db.MarketInventoryItems.Where(x => x.UserId == userId).Select(x => x.ItemId).ToListAsync();
+        return await LoadItems(db, ids);
+    }
 
-        return await LoadItems(ids);
+    public async Task<ItemCollectionDTO> GetItemsAsync(Guid userId)
+    {
+        await using var db = _dbFactory.CreateDbContext();
+        var ids = await db.InventoryItems.Where(x => x.UserId == userId).Select(x => x.ItemId).ToListAsync();
+        return await LoadItems(db, ids);
     }
 
     public async Task AddToInventoryAsync(Guid userId, Guid itemId)
     {
-        _context.InventoryItems.Add(new InventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            ItemId = itemId
-        });
-
-        await _context.SaveChangesAsync();
+        await using var db = _dbFactory.CreateDbContext();
+        db.InventoryItems.Add(new InventoryItem { Id = Guid.NewGuid(), UserId = userId, ItemId = itemId });
+        await db.SaveChangesAsync();
     }
 
     public async Task AddToRunInventoryAsync(Guid userId, Guid itemId)
     {
-        _context.RunInventoryItems.Add(new RunInventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            ItemId = itemId
-        });
-
-        await _context.SaveChangesAsync();
+        await using var db = _dbFactory.CreateDbContext();
+        db.RunInventoryItems.Add(new RunInventoryItem { Id = Guid.NewGuid(), UserId = userId, ItemId = itemId });
+        await db.SaveChangesAsync();
     }
 
-    private async Task<ItemCollectionDTO> LoadItems(List<Guid> ids)
+    private static async Task<ItemCollectionDTO> LoadItems(AppDbContext db, List<Guid> ids)
     {
-        var weapons = await _context.Weapons
-            .Where(x => ids.Contains(x.Id))
-            .Include(x => x.Elements)
-            .ToListAsync();
-
-        var armors = await _context.Armors
-            .Where(x => ids.Contains(x.Id))
-            .Include(x => x.Elements)
-            .ToListAsync();
+        var weapons = await db.Weapons.Where(x => ids.Contains(x.Id)).Include(x => x.Elements).ToListAsync();
+        var armors = await db.Armors.Where(x => ids.Contains(x.Id)).Include(x => x.Elements).ToListAsync();
 
         return new ItemCollectionDTO
         {
@@ -214,39 +171,25 @@ public class InventoryService : IInventoryService
         };
     }
 
-    private WeaponDTO MapWeapon(Weapon x)
+    private static WeaponDTO MapWeapon(Weapon x) => new()
     {
-        return new WeaponDTO
-        {
-            Id = x.Id,
-            Name = x.Name,
-            Category = x.Category,
-            WeaponType = x.WeaponType,
-            Cut = x.Cut,
-            Blunt = x.Blunt,
-            Elements = x.Elements.Select(e => new ItemElementDTO
-            {
-                Type = e.ItemElementType,
-                Value = e.Value
-            }).ToList()
-        };
-    }
+        Id = x.Id,
+        Name = x.Name,
+        Category = x.Category,
+        WeaponType = x.WeaponType,
+        Cut = x.Cut,
+        Blunt = x.Blunt,
+        Elements = x.Elements.Select(e => new ItemElementDTO { Type = e.ItemElementType, Value = e.Value }).ToList()
+    };
 
-    private ArmorDTO MapArmor(Armor x)
+    private static ArmorDTO MapArmor(Armor x) => new()
     {
-        return new ArmorDTO
-        {
-            Id = x.Id,
-            Name = x.Name,
-            Category = x.Category,
-            ArmorType = x.ArmorType,
-            CutResistance = x.CutResistance,
-            BluntResistance = x.BluntResistance,
-            Elements = x.Elements.Select(e => new ItemElementDTO
-            {
-                Type = e.ItemElementType,
-                Value = e.Value
-            }).ToList()
-        };
-    }
+        Id = x.Id,
+        Name = x.Name,
+        Category = x.Category,
+        ArmorType = x.ArmorType,
+        CutResistance = x.CutResistance,
+        BluntResistance = x.BluntResistance,
+        Elements = x.Elements.Select(e => new ItemElementDTO { Type = e.ItemElementType, Value = e.Value }).ToList()
+    };
 }

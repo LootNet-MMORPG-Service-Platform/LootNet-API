@@ -10,7 +10,7 @@ namespace LootNet_API.Services;
 
 
 
-public class EnemyGenerationService
+public class EnemyGenerationService : IEnemyGenerationService
 {
     private readonly AppDbContext _context;
     private readonly IItemGenerationService _itemGenerationService;
@@ -78,6 +78,7 @@ public class EnemyGenerationService
         {
             Id = Guid.NewGuid(),
             Position = position,
+            Class = profile.Class,
             CurrentHp = CurrentHP,
             MaxHp = MaxHP,
             Equipment = equipment

@@ -1,16 +1,18 @@
 ﻿namespace LootNet_API.Controllers;
+using System.Threading.Tasks;
 using LootNet_API.Data;
-using LootNet_API.DTO.Items;
 using LootNet_API.DTO;
+using LootNet_API.DTO.Items;
 using LootNet_API.Enums;
 using LootNet_API.Extensions;
 using LootNet_API.Hubs;
+using LootNet_API.Models.GameRun;
 using LootNet_API.Models.Items;
+using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
-using LootNet_API.Services.Interfaces;
-using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 [ApiController]
 [Route("api/mobile")]
@@ -137,7 +139,21 @@ public class MobileController : ControllerBase
     public async Task<IActionResult> EquipWeapon(int slot, Guid itemId)
     {
         var userId = User.GetUserId();
-        await _equipmentService.EquipWeaponAsync(userId, itemId, slot);
+
+        var run = await GetActiveRun(userId);
+
+        if (run != null)
+        {
+            if (run.Status == RunStatus.InBattle)
+                return BadRequest("Cannot change equipment during battle");
+
+            await _equipmentService.EquipWeaponFromRunAsync(userId, itemId, slot);
+        }
+        else
+        {
+            await _equipmentService.EquipWeaponAsync(userId, itemId, slot);
+        }
+
         return Ok();
     }
 
@@ -145,7 +161,21 @@ public class MobileController : ControllerBase
     public async Task<IActionResult> EquipArmor(Guid itemId)
     {
         var userId = User.GetUserId();
-        await _equipmentService.EquipArmorAsync(userId, itemId);
+
+        var run = await GetActiveRun(userId);
+
+        if (run != null)
+        {
+            if (run.Status == RunStatus.InBattle)
+                return BadRequest("Cannot change equipment during battle");
+
+            await _equipmentService.EquipArmorFromRunAsync(userId, itemId);
+        }
+        else
+        {
+            await _equipmentService.EquipArmorAsync(userId, itemId);
+        }
+
         return Ok();
     }
 
@@ -153,7 +183,22 @@ public class MobileController : ControllerBase
     public async Task<IActionResult> Unequip(Guid itemId)
     {
         var userId = User.GetUserId();
+
+        var run = await GetActiveRun(userId);
+
+        if (run != null && run.Status == RunStatus.InBattle)
+            return BadRequest("Cannot unequip during battle");
+
         await _equipmentService.UnequipItemAsync(userId, itemId);
+
         return Ok();
+    }
+    private async Task<Run?> GetActiveRun(Guid userId)
+    {
+        return await _context.Runs
+            .Include(x => x.Battles)
+            .FirstOrDefaultAsync(x =>
+                x.UserId == userId &&
+                (x.Status == RunStatus.Active || x.Status == RunStatus.InBattle));
     }
 }

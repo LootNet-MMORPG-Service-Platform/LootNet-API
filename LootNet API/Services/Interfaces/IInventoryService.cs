@@ -12,6 +12,7 @@ public interface IInventoryService
 
     Task MoveToRunAsync(Guid userId, List<Guid> itemIds);
     Task ReturnFromRunAsync(Guid userId);
+    Task LoseRunItemsAsync(Guid userId);
     Task MoveToMarketAsync(Guid userId, Guid itemId);
     Task ReturnFromMarketAsync(Guid userId, Guid itemId);
 
