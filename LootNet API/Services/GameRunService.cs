@@ -13,17 +13,20 @@ public class GameRunService
     private readonly BattleService _battle;
     private readonly IEnemyGenerationService _enemyGeneration;
     private readonly IInventoryService _inventory;
+    private readonly IRealtimeNotifier? _realtimeNotifier;
 
     public GameRunService(
         IDbContextFactory<AppDbContext> dbFactory,
         BattleService battle,
         IEnemyGenerationService enemyGeneration,
-        IInventoryService inventory)
+        IInventoryService inventory,
+        IRealtimeNotifier? realtimeNotifier = null)
     {
         _dbFactory = dbFactory;
         _battle = battle;
         _enemyGeneration = enemyGeneration;
         _inventory = inventory;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     public async Task<RunDTO> StartRunAsync(Guid userId, StartRunDTO dto)
@@ -53,6 +56,7 @@ public class GameRunService
 
         db.Runs.Add(run);
         await db.SaveChangesAsync();
+        await NotifyAsync("run", "started", userId, new { runId = run.Id });
 
         return MapRun(run);
     }
@@ -79,6 +83,7 @@ public class GameRunService
                 node.Entry.State = EntityState.Added;
         });
         await db.SaveChangesAsync();
+        await NotifyAsync("run", "go-further", userId, new { runId = run.Id, battleId = battle.Id });
 
         return MapBattle(run, battle);
     }
@@ -98,6 +103,7 @@ public class GameRunService
             await _inventory.LoseRunItemsAsync(userId);
 
         await db.SaveChangesAsync();
+        await NotifyAsync("run", "finish-turn", userId, new { runId = run.Id, battleId = battle.Id, run.Status });
 
         return result;
     }
@@ -113,6 +119,7 @@ public class GameRunService
 
         await _inventory.ReturnFromRunAsync(userId);
         await db.SaveChangesAsync();
+        await NotifyAsync("run", "ended", userId, new { runId = run.Id, status = run.Status });
 
         return MapRun(run);
     }
@@ -135,6 +142,7 @@ public class GameRunService
 
         await _inventory.ReturnFromRunAsync(userId);
         await db.SaveChangesAsync();
+        await NotifyAsync("run", "forced-return", userId, new { runId = run.Id });
 
         return MapRun(run);
     }
@@ -185,4 +193,7 @@ public class GameRunService
             RightHandItemId = e.RightHandItemId
         }).ToList()
     };
+
+    private Task NotifyAsync(string domain, string action, Guid userId, object? data = null)
+        => _realtimeNotifier?.AppChangedAsync(domain, action, userId, data) ?? Task.CompletedTask;
 }

@@ -7,10 +7,12 @@ using Microsoft.EntityFrameworkCore;
 public class InventoryService : IInventoryService
 {
     private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IRealtimeNotifier? _realtimeNotifier;
 
-    public InventoryService(IDbContextFactory<AppDbContext> dbFactory)
+    public InventoryService(IDbContextFactory<AppDbContext> dbFactory, IRealtimeNotifier? realtimeNotifier = null)
     {
         _dbFactory = dbFactory;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     public async Task MoveToRunAsync(Guid userId, List<Guid> itemIds)
@@ -26,6 +28,7 @@ public class InventoryService : IInventoryService
 
         db.InventoryItems.RemoveRange(items);
         await db.SaveChangesAsync();
+        await NotifyAsync("inventory", "move-to-run", userId);
     }
 
     public async Task ReturnFromRunAsync(Guid userId)
@@ -41,6 +44,7 @@ public class InventoryService : IInventoryService
 
         db.RunInventoryItems.RemoveRange(items);
         await db.SaveChangesAsync();
+        await NotifyAsync("inventory", "return-from-run", userId);
     }
 
     public async Task LoseRunItemsAsync(Guid userId)
@@ -76,6 +80,7 @@ public class InventoryService : IInventoryService
         db.Armors.RemoveRange(armors);
 
         await db.SaveChangesAsync();
+        await NotifyAsync("inventory", "lose-run-items", userId);
     }
 
     public async Task MoveToMarketAsync(Guid userId, Guid itemId)
@@ -89,6 +94,7 @@ public class InventoryService : IInventoryService
         db.MarketInventoryItems.Add(new MarketInventoryItem { Id = Guid.NewGuid(), UserId = userId, ItemId = itemId });
         db.InventoryItems.Remove(item);
         await db.SaveChangesAsync();
+        await NotifyAsync("inventory", "move-to-market", userId);
     }
 
     public async Task ReturnFromMarketAsync(Guid userId, Guid itemId)
@@ -102,6 +108,7 @@ public class InventoryService : IInventoryService
         db.InventoryItems.Add(new InventoryItem { Id = Guid.NewGuid(), UserId = userId, ItemId = itemId });
         db.MarketInventoryItems.Remove(item);
         await db.SaveChangesAsync();
+        await NotifyAsync("inventory", "return-from-market", userId);
     }
 
     public async Task TransferFromSellerToBuyerAsync(Guid sellerId, Guid buyerId, Guid itemId)
@@ -115,6 +122,7 @@ public class InventoryService : IInventoryService
         db.MarketInventoryItems.Remove(listing);
         db.InventoryItems.Add(new InventoryItem { Id = Guid.NewGuid(), UserId = buyerId, ItemId = itemId });
         await db.SaveChangesAsync();
+        await NotifyAsync("inventory", "transfer-item", buyerId, new { sellerId, itemId });
     }
 
     public async Task<ItemCollectionDTO> GetInventoryAsync(Guid userId)
@@ -150,6 +158,7 @@ public class InventoryService : IInventoryService
         await using var db = _dbFactory.CreateDbContext();
         db.InventoryItems.Add(new InventoryItem { Id = Guid.NewGuid(), UserId = userId, ItemId = itemId });
         await db.SaveChangesAsync();
+        await NotifyAsync("inventory", "add-inventory-item", userId, new { itemId });
     }
 
     public async Task AddToRunInventoryAsync(Guid userId, Guid itemId)
@@ -157,6 +166,7 @@ public class InventoryService : IInventoryService
         await using var db = _dbFactory.CreateDbContext();
         db.RunInventoryItems.Add(new RunInventoryItem { Id = Guid.NewGuid(), UserId = userId, ItemId = itemId });
         await db.SaveChangesAsync();
+        await NotifyAsync("inventory", "add-run-item", userId, new { itemId });
     }
 
     private static async Task<ItemCollectionDTO> LoadItems(AppDbContext db, List<Guid> ids)
@@ -192,4 +202,7 @@ public class InventoryService : IInventoryService
         BluntResistance = x.BluntResistance,
         Elements = x.Elements.Select(e => new ItemElementDTO { Type = e.ItemElementType, Value = e.Value }).ToList()
     };
+
+    private Task NotifyAsync(string domain, string action, Guid userId, object? data = null)
+        => _realtimeNotifier?.AppChangedAsync(domain, action, userId, data) ?? Task.CompletedTask;
 }

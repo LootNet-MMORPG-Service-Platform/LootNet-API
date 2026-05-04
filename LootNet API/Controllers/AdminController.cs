@@ -1,7 +1,6 @@
-﻿using LootNet_API.DTO.Admin;
+using LootNet_API.DTO.Admin;
 using LootNet_API.Extensions;
-using LootNet_API.Models;
-using LootNet_API.Services;
+using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,9 +11,9 @@ namespace LootNet_API.Controllers;
 [Authorize(Roles = "Admin,SuperAdmin")]
 public class AdminController : ControllerBase
 {
-    private readonly AdminService _service;
+    private readonly IAdminService _service;
 
-    public AdminController(AdminService service)
+    public AdminController(IAdminService service)
     {
         _service = service;
     }
@@ -42,6 +41,18 @@ public class AdminController : ControllerBase
     [HttpGet("users/{id}/equipment")]
     public async Task<IActionResult> GetEquipment(Guid id)
         => Ok(await _service.GetUserEquipmentAsync(id));
+
+    [HttpGet("runs")]
+    public async Task<IActionResult> GetRuns([FromQuery] GetRunsQueryDTO query)
+        => Ok(await _service.GetRunsAsync(query));
+
+    [HttpGet("runs/{runId}")]
+    public async Task<IActionResult> GetRun(Guid runId)
+        => Ok(await _service.GetRunAsync(runId));
+
+    [HttpGet("users/{id}/runs")]
+    public async Task<IActionResult> GetUserRuns(Guid id)
+        => Ok(await _service.GetUserRunsAsync(id));
 
     [HttpPost("users/{id}/block")]
     public async Task<IActionResult> Block(Guid id, BlockUserDTO dto)

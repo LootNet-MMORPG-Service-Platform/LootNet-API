@@ -9,10 +9,12 @@ using Microsoft.EntityFrameworkCore;
 public class EquipmentService : IEquipmentService
 {
     private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IRealtimeNotifier? _realtimeNotifier;
 
-    public EquipmentService(IDbContextFactory<AppDbContext> dbFactory)
+    public EquipmentService(IDbContextFactory<AppDbContext> dbFactory, IRealtimeNotifier? realtimeNotifier = null)
     {
         _dbFactory = dbFactory;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     public async Task<EquipmentResponseDTO> GetEquipmentAsync(Guid userId)
@@ -56,6 +58,7 @@ public class EquipmentService : IEquipmentService
         ApplyWeapon(eq, weapon, slot);
 
         await db.SaveChangesAsync();
+        await NotifyAsync("equipment", "equip-weapon", userId, new { itemId, slot });
     }
 
     public async Task EquipWeaponFromRunAsync(Guid userId, Guid itemId, int slot)
@@ -73,6 +76,7 @@ public class EquipmentService : IEquipmentService
         ApplyWeapon(eq, weapon, slot);
 
         await db.SaveChangesAsync();
+        await NotifyAsync("equipment", "equip-weapon-from-run", userId, new { itemId, slot });
     }
 
     public async Task EquipArmorAsync(Guid userId, Guid itemId)
@@ -93,6 +97,7 @@ public class EquipmentService : IEquipmentService
         SetArmorSlot(eq, armor.ArmorType, itemId);
 
         await db.SaveChangesAsync();
+        await NotifyAsync("equipment", "equip-armor", userId, new { itemId });
     }
 
     public async Task EquipArmorFromRunAsync(Guid userId, Guid itemId)
@@ -110,6 +115,7 @@ public class EquipmentService : IEquipmentService
         SetArmorSlot(eq, armor.ArmorType, itemId);
 
         await db.SaveChangesAsync();
+        await NotifyAsync("equipment", "equip-armor-from-run", userId, new { itemId });
     }
 
     public async Task UnequipItemAsync(Guid userId, Guid itemId)
@@ -131,6 +137,7 @@ public class EquipmentService : IEquipmentService
         }
 
         await db.SaveChangesAsync();
+        await NotifyAsync("equipment", "unequip-item", userId, new { itemId });
     }
 
     public void ApplyEnemyEquipment(Equipment equipment, List<Item> items)
@@ -308,4 +315,7 @@ public class EquipmentService : IEquipmentService
             .Include(x => x.Elements)
             .FirstOrDefaultAsync(x => x.Id == id);
     }
+
+    private Task NotifyAsync(string domain, string action, Guid userId, object? data = null)
+        => _realtimeNotifier?.AppChangedAsync(domain, action, userId, data) ?? Task.CompletedTask;
 }

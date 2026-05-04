@@ -10,6 +10,7 @@ using LootNet_API.DTO;
 using LootNet_API.Enums;
 using LootNet_API.Models;
 using LootNet_API.Services;
+using LootNet_API.Services.Interfaces;
 using LootNet_API.Tests.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +25,7 @@ public class AuthControllerTests
     private readonly IConfiguration _config;
     private readonly TokenService _tokenService;
     private readonly AuthController _controller;
+    private readonly IRealtimeNotifier _realtimeNotifier;
 
     public AuthControllerTests()
     {
@@ -40,7 +42,8 @@ public class AuthControllerTests
 
         _config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
         _tokenService = new TokenService(_db, _config);
-        _controller = new AuthController(_db, _config, _tokenService);
+        _realtimeNotifier = new FakeRealtimeNotifier();
+        _controller = new AuthController(_db, _config, _tokenService, _realtimeNotifier);
     }
 
     [Fact]
@@ -178,5 +181,11 @@ public class AuthControllerTests
         var result = await _controller.ResetPassword(dto);
         var bad = Assert.IsType<BadRequestObjectResult>(result);
         Assert.Equal("Wrong password", bad.Value);
+    }
+
+    private class FakeRealtimeNotifier : IRealtimeNotifier
+    {
+        public Task AppChangedAsync(string domain, string action, Guid? userId = null, object? data = null)
+            => Task.CompletedTask;
     }
 }

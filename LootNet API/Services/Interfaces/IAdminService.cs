@@ -23,4 +23,10 @@ public interface IAdminService
     Task<ItemCollectionDTO> GetUserMarketInventoryAsync(Guid userId);
 
     Task<EquipmentResponseDTO> GetUserEquipmentAsync(Guid userId);
+
+    Task<PagedResultDTO<AdminRunListDTO>> GetRunsAsync(GetRunsQueryDTO query);
+
+    Task<List<AdminRunListDTO>> GetUserRunsAsync(Guid userId);
+
+    Task<AdminRunDetailsDTO> GetRunAsync(Guid runId);
 }

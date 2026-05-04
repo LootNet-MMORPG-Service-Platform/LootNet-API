@@ -61,11 +61,17 @@ namespace LootNet_API
             builder.Services.AddScoped<IInventoryService, InventoryService>();
             builder.Services.AddScoped<IAdminService, AdminService>();
             builder.Services.AddScoped<IGenerationAdminService, GenerationAdminService>();
+            builder.Services.AddScoped<IEnemyGenerationAdminService, EnemyGenerationAdminService>();
             builder.Services.AddScoped<IEquipmentService, EquipmentService>();
+            builder.Services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
             builder.Services.AddSignalR();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
-            builder.Services.AddDbContext<AppDbContext>(options =>
+            builder.Services.AddDbContext<AppDbContext>(
+                options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
+                contextLifetime: ServiceLifetime.Scoped,
+                optionsLifetime: ServiceLifetime.Singleton);
+            builder.Services.AddDbContextFactory<AppDbContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             var app = builder.Build();
@@ -124,12 +130,31 @@ namespace LootNet_API
             if (exists)
                 return;
 
+            var profileId = db.GenerationProfiles
+                .Select(x => x.Id)
+                .FirstOrDefault();
+
+            if (profileId == Guid.Empty)
+            {
+                var profile = new LootNet_API.Models.Items.Generation.GenerationProfile
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Default"
+                };
+
+                db.GenerationProfiles.Add(profile);
+                db.SaveChanges();
+
+                profileId = profile.Id;
+            }
+
             var user = new User
             {
                 Id = Guid.NewGuid(),
                 Username = username,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
                 Role = UserRole.SuperAdmin,
+                ProfileId = profileId,
                 Currency = 0,
                 Equipment = new Equipment()
             };

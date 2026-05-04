@@ -14,11 +14,13 @@ public class MarketplaceService : IMarketplaceService
 {
     private readonly AppDbContext _context;
     private readonly IInventoryService _inventoryService;
+    private readonly IRealtimeNotifier? _realtimeNotifier;
 
-    public MarketplaceService(AppDbContext context, IInventoryService inventoryService)
+    public MarketplaceService(AppDbContext context, IInventoryService inventoryService, IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _inventoryService = inventoryService;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     public async Task<PagedResultDTO<WeaponMarketDTO>> GetWeaponsAsync(WeaponQueryDTO q)
@@ -139,6 +141,7 @@ public class MarketplaceService : IMarketplaceService
         _context.MarketListings.Add(listing);
 
         await _context.SaveChangesAsync();
+        await NotifyAsync("market", "listing-created", userId, new { listingId = listing.Id, dto.ItemId });
 
         return listing;
     }
@@ -165,6 +168,7 @@ public class MarketplaceService : IMarketplaceService
         listing.IsSold = true;
 
         await _context.SaveChangesAsync();
+        await NotifyAsync("market", "listing-sold", buyerId, new { listingId, sellerId = seller.Id, listing.ItemId });
     }
     private bool PassWeaponFilters(WeaponQueryDTO q, MarketListing l, Weapon w)
     {
@@ -315,4 +319,7 @@ public class MarketplaceService : IMarketplaceService
             }).ToList()
         };
     }
+
+    private Task NotifyAsync(string domain, string action, Guid userId, object? data = null)
+        => _realtimeNotifier?.AppChangedAsync(domain, action, userId, data) ?? Task.CompletedTask;
 }

@@ -5,13 +5,11 @@ using LootNet_API.DTO;
 using LootNet_API.DTO.Items;
 using LootNet_API.Enums;
 using LootNet_API.Extensions;
-using LootNet_API.Hubs;
 using LootNet_API.Models.GameRun;
 using LootNet_API.Models.Items;
 using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 [ApiController]
@@ -20,19 +18,20 @@ using Microsoft.EntityFrameworkCore;
 public class MobileController : ControllerBase
 {
     private readonly AppDbContext _context;
-    private readonly IHubContext<GameHub> _hub;
     private readonly IItemGenerationService _itemGenerationService;
     private readonly IInventoryService _inventoryService;
     private readonly IEquipmentService _equipmentService;
+    private readonly IRealtimeNotifier _realtimeNotifier;
 
-    public MobileController(AppDbContext context, IHubContext<GameHub> hub,
-        IItemGenerationService itemGenerationService, IInventoryService inventoryService, IEquipmentService equipmentService)
+    public MobileController(AppDbContext context,
+        IItemGenerationService itemGenerationService, IInventoryService inventoryService, IEquipmentService equipmentService,
+        IRealtimeNotifier realtimeNotifier)
     {
         _context = context;
-        _hub = hub;
         _itemGenerationService = itemGenerationService;
         _inventoryService = inventoryService;
         _equipmentService = equipmentService;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     [HttpGet("me")]
@@ -89,8 +88,7 @@ public class MobileController : ControllerBase
         user.LastDailyReward = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        await _hub.Clients.User(userId.ToString())
-            .SendAsync("ItemGenerated", item.Name);
+        await _realtimeNotifier.AppChangedAsync("reward", "daily-claimed", userId, new { itemId = item.Id, item.Name });
 
         return Ok(new ItemRewardDTO
         {
@@ -153,6 +151,7 @@ public class MobileController : ControllerBase
         {
             await _equipmentService.EquipWeaponAsync(userId, itemId, slot);
         }
+        await _realtimeNotifier.AppChangedAsync("equipment", "equip-weapon-mobile", userId, new { itemId, slot });
 
         return Ok();
     }
@@ -175,6 +174,7 @@ public class MobileController : ControllerBase
         {
             await _equipmentService.EquipArmorAsync(userId, itemId);
         }
+        await _realtimeNotifier.AppChangedAsync("equipment", "equip-armor-mobile", userId, new { itemId });
 
         return Ok();
     }
@@ -190,6 +190,7 @@ public class MobileController : ControllerBase
             return BadRequest("Cannot unequip during battle");
 
         await _equipmentService.UnequipItemAsync(userId, itemId);
+        await _realtimeNotifier.AppChangedAsync("equipment", "unequip-mobile", userId, new { itemId });
 
         return Ok();
     }

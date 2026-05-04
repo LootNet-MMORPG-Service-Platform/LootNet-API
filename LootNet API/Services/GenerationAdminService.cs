@@ -16,10 +16,12 @@ namespace LootNet_API.Services;
 public class GenerationAdminService : IGenerationAdminService
 {
     private readonly AppDbContext _context;
+    private readonly IRealtimeNotifier? _realtimeNotifier;
 
-    public GenerationAdminService(AppDbContext context)
+    public GenerationAdminService(AppDbContext context, IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     #region CREATE
@@ -372,5 +374,6 @@ public class GenerationAdminService : IGenerationAdminService
         });
 
         await _context.SaveChangesAsync();
+        await (_realtimeNotifier?.AppChangedAsync("generation", action.ToLowerInvariant(), null, new { id }) ?? Task.CompletedTask);
     }
 }

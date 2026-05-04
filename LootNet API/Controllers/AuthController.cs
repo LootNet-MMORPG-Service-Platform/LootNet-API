@@ -5,10 +5,12 @@ using System.Text;
 using Data;
 using DTO;
 using Enums;
+using LootNet_API.Models.Items.Generation;
 using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Models;
 
@@ -19,12 +21,14 @@ public class AuthController : ControllerBase
     private readonly AppDbContext _context;
     private readonly IConfiguration _config;
     private readonly ITokenService _tokenService;
+    private readonly IRealtimeNotifier _realtimeNotifier;
 
-    public AuthController(AppDbContext context, IConfiguration config, ITokenService tokenService)
+    public AuthController(AppDbContext context, IConfiguration config, ITokenService tokenService, IRealtimeNotifier realtimeNotifier)
     {
         _context = context;
         _config = config;
         _tokenService = tokenService;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     [HttpPost("register")]
@@ -34,6 +38,7 @@ public class AuthController : ControllerBase
             return BadRequest("User already exists");
 
         var hash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+        var profileId = await EnsureDefaultProfileAsync();
 
         var user = new User
         {
@@ -41,11 +46,13 @@ public class AuthController : ControllerBase
             Username = dto.Username,
             PasswordHash = hash,
             Role = UserRole.Player,
+            ProfileId = profileId,
             Equipment = new Equipment()
         };
 
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
+        await _realtimeNotifier.AppChangedAsync("auth", "user-registered", user.Id);
 
         return Ok();
     }
@@ -119,8 +126,30 @@ public class AuthController : ControllerBase
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
 
         await _context.SaveChangesAsync();
+        await _realtimeNotifier.AppChangedAsync("auth", "password-reset", user.Id);
 
         return Ok("Password changed");
+    }
+
+    private async Task<Guid> EnsureDefaultProfileAsync()
+    {
+        var profileId = await _context.GenerationProfiles
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        if (profileId != Guid.Empty)
+            return profileId;
+
+        var profile = new GenerationProfile
+        {
+            Id = Guid.NewGuid(),
+            Name = "Default"
+        };
+
+        _context.GenerationProfiles.Add(profile);
+        await _context.SaveChangesAsync();
+
+        return profile.Id;
     }
 }
 

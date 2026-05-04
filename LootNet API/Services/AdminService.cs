@@ -4,9 +4,11 @@ using LootNet_API.DTO.Admin;
 using LootNet_API.DTO.Items;
 using LootNet_API.Enums;
 using LootNet_API.Models;
+using LootNet_API.Models.GameRun;
 using LootNet_API.Models.Logs;
 using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace LootNet_API.Services;
 
@@ -15,12 +17,14 @@ public class AdminService : IAdminService
     private readonly AppDbContext _context;
     private readonly IInventoryService _inventory;
     private readonly IEquipmentService _equipment;
+    private readonly IRealtimeNotifier? _realtimeNotifier;
 
-    public AdminService(AppDbContext context, IInventoryService inventory, IEquipmentService equipment)
+    public AdminService(AppDbContext context, IInventoryService inventory, IEquipmentService equipment, IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _inventory = inventory;
         _equipment = equipment;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     public async Task<PagedResultDTO<AdminUserListDTO>> GetUsersAsync(GetUsersQueryDTO query)
@@ -90,6 +94,78 @@ public class AdminService : IAdminService
         return await _equipment.GetEquipmentAsync(userId);
     }
 
+    public async Task<PagedResultDTO<AdminRunListDTO>> GetRunsAsync(GetRunsQueryDTO query)
+    {
+        var q = _context.Runs.AsQueryable();
+
+        if (query.UserId.HasValue)
+            q = q.Where(x => x.UserId == query.UserId.Value);
+
+        if (query.Status.HasValue)
+            q = q.Where(x => x.Status == query.Status.Value);
+
+        var total = await q.CountAsync();
+
+        var items = await q
+            .OrderByDescending(x => x.StartedAt)
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .Select(MapRunList())
+            .ToListAsync();
+
+        return new PagedResultDTO<AdminRunListDTO>
+        {
+            Items = items,
+            TotalCount = total,
+            Page = query.Page,
+            PageSize = query.PageSize
+        };
+    }
+
+    public async Task<List<AdminRunListDTO>> GetUserRunsAsync(Guid userId)
+    {
+        return await _context.Runs
+            .Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.StartedAt)
+            .Select(MapRunList())
+            .ToListAsync();
+    }
+
+    public async Task<AdminRunDetailsDTO> GetRunAsync(Guid runId)
+    {
+        return await _context.Runs
+            .Where(x => x.Id == runId)
+            .Select(x => new AdminRunDetailsDTO
+            {
+                Id = x.Id,
+                UserId = x.UserId,
+                Status = x.Status,
+                BattleIndex = x.BattleIndex,
+                PlayerCurrentHp = x.PlayerCurrentHp,
+                PlayerMaxHp = x.PlayerMaxHp,
+                IsPlayerDisorganized = x.IsPlayerDisorganized,
+                PlayerSkipNextTurn = x.PlayerSkipNextTurn,
+                PlayerPosition = x.PlayerPosition,
+                LeftHandItemId = x.LeftHandItemId,
+                RightHandItemId = x.RightHandItemId,
+                StartedAt = x.StartedAt,
+                FinishedAt = x.FinishedAt,
+                Battles = x.Battles.Select(b => new AdminBattleDTO
+                {
+                    Id = b.Id,
+                    Enemies = b.Enemies.Select(e => new AdminBattleEnemyDTO
+                    {
+                        Id = e.Id,
+                        Class = e.Class,
+                        Position = e.Position,
+                        CurrentHp = e.CurrentHp,
+                        MaxHp = e.MaxHp
+                    }).ToList()
+                }).ToList()
+            })
+            .FirstAsync();
+    }
+
     public async Task BlockUserAsync(Guid adminId, Guid userId, string reason, int? days)
     {
         var user = await _context.Users.FirstAsync(x => x.Id == userId);
@@ -107,6 +183,7 @@ public class AdminService : IAdminService
             reason,
             days
         });
+        await (_realtimeNotifier?.AppChangedAsync("admin.user", "blocked", userId, new { reason, days }) ?? Task.CompletedTask);
     }
 
     public async Task UnblockUserAsync(Guid adminId, Guid userId)
@@ -120,6 +197,7 @@ public class AdminService : IAdminService
         await _context.SaveChangesAsync();
 
         await LogAsync(adminId, "UNBLOCK_USER", userId);
+        await (_realtimeNotifier?.AppChangedAsync("admin.user", "unblocked", userId) ?? Task.CompletedTask);
     }
 
     public async Task ChangeRoleAsync(Guid adminId, Guid userId, UserRole role)
@@ -136,6 +214,7 @@ public class AdminService : IAdminService
             oldRole,
             newRole = role
         });
+        await (_realtimeNotifier?.AppChangedAsync("admin.user", "role-changed", userId, new { oldRole, role }) ?? Task.CompletedTask);
     }
 
     private async Task LogAsync(Guid adminId, string action, Guid targetUserId, object? data = null)
@@ -194,4 +273,17 @@ public class AdminService : IAdminService
                 q.OrderBy(x => x.Username)
         };
     }
+
+    private static Expression<Func<Run, AdminRunListDTO>> MapRunList()
+        => x => new AdminRunListDTO
+        {
+            Id = x.Id,
+            UserId = x.UserId,
+            Status = x.Status,
+            BattleIndex = x.BattleIndex,
+            PlayerCurrentHp = x.PlayerCurrentHp,
+            PlayerMaxHp = x.PlayerMaxHp,
+            StartedAt = x.StartedAt,
+            FinishedAt = x.FinishedAt
+        };
 }
