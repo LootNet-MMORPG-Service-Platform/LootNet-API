@@ -62,13 +62,20 @@ public class AuthController : ControllerBase
     {
         var user = _context.Users.FirstOrDefault(u => u.Username == dto.Username);
 
-        if (user == null || user.IsBlocked)
-            return Unauthorized();
+        if (user == null)
+            return Unauthorized("Invalid username or password.");
+
+        if (user.IsBlocked)
+        {
+            var blockedUntil = user.BlockedUntil?.ToString("u") ?? "indefinitely";
+            var reason = string.IsNullOrWhiteSpace(user.BlockReason) ? "No reason provided." : user.BlockReason;
+            return StatusCode(StatusCodes.Status403Forbidden, $"Account is blocked until {blockedUntil}. Reason: {reason}");
+        }
 
         var valid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
 
         if (!valid)
-            return Unauthorized();
+            return Unauthorized("Invalid username or password.");
 
         var token = _tokenService.GenerateJwt(user);
         var refresh = _tokenService.GenerateRefreshToken(user.Id);

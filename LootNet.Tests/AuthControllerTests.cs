@@ -98,7 +98,8 @@ public class AuthControllerTests
         var dto = new LoginDTO { Username = "player1", Password = "wrong" };
         var result = _controller.Login(dto);
 
-        Assert.IsType<UnauthorizedResult>(result);
+        var unauthorized = Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.Equal("Invalid username or password.", unauthorized.Value);
     }
 
     [Fact]

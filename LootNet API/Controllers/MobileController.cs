@@ -126,6 +126,21 @@ public class MobileController : ControllerBase
         return Ok(await _inventoryService.GetMarketInventoryAsync(userId));
     }
 
+    [HttpPost("inventory/market/return")]
+    public async Task<IActionResult> ReturnFromMarket([FromBody] ReturnFromMarketDTO dto)
+    {
+        try
+        {
+            var userId = User.GetUserId();
+            await _inventoryService.ReturnFromMarketAsync(userId, dto.ItemId);
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = string.IsNullOrWhiteSpace(ex.Message) ? "Item not found in market inventory." : ex.Message });
+        }
+    }
+
     [HttpGet("equipment")]
     public async Task<IActionResult> GetEquipment()
     {

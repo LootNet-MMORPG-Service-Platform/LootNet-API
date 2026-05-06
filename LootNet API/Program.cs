@@ -1,8 +1,6 @@
 using System.Text;
 using LootNet_API.Data;
-using LootNet_API.Enums;
 using LootNet_API.Hubs;
-using LootNet_API.Models;
 using LootNet_API.Services;
 using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -56,6 +54,7 @@ namespace LootNet_API
                 };
             });
             builder.Services.AddScoped<ITokenService, TokenService>();
+            builder.Services.AddScoped<IMarketplaceService, MarketplaceService>();
             builder.Services.AddScoped<IItemGenerationService, ItemGenerationService>();
             builder.Services.AddScoped<IItemNameGenerator, ItemNameGenerator>();
             builder.Services.AddScoped<IInventoryService, InventoryService>();
@@ -66,7 +65,35 @@ namespace LootNet_API
             builder.Services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
             builder.Services.AddSignalR();
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            builder.Services.AddSwaggerGen(options =>
+            {
+                options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "LootNet API", Version = "v1" });
+
+                options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+                {
+                    Name = "Authorization",
+                    Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+                    Scheme = "Bearer",
+                    BearerFormat = "JWT",
+                    In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+                    Description = "Type in JWT (without word 'Bearer')"
+                });
+
+                options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+                {
+                    {
+                        new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+                        {
+                            Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                            {
+                                Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                    Array.Empty<string>()
+                    }
+                });
+            });
             builder.Services.AddDbContext<AppDbContext>(
                 options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
                 contextLifetime: ServiceLifetime.Scoped,
@@ -96,17 +123,6 @@ namespace LootNet_API
                 return;
             }
 
-            using (var scope = app.Services.CreateScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-                if (db.Database.IsRelational())
-                {
-                    db.Database.Migrate();
-                    CreateSuperAdmin(db);
-                }
-            }
-
             app.UseHttpsRedirection();
             app.UseStaticFiles();
             app.UseRouting();
@@ -119,52 +135,6 @@ namespace LootNet_API
             app.UseSwaggerUI();
 
             app.Run();
-        }
-        private static void CreateSuperAdmin(AppDbContext db)
-        {
-            const string username = "superadmin";
-            const string password = "superadmin";
-
-            var exists = db.Users.Any(x => x.Username == username);
-
-            if (exists)
-                return;
-
-            var profileId = db.GenerationProfiles
-                .Select(x => x.Id)
-                .FirstOrDefault();
-
-            if (profileId == Guid.Empty)
-            {
-                var profile = new LootNet_API.Models.Items.Generation.GenerationProfile
-                {
-                    Id = Guid.NewGuid(),
-                    Name = "Default"
-                };
-
-                db.GenerationProfiles.Add(profile);
-                db.SaveChanges();
-
-                profileId = profile.Id;
-            }
-
-            var user = new User
-            {
-                Id = Guid.NewGuid(),
-                Username = username,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
-                Role = UserRole.SuperAdmin,
-                ProfileId = profileId,
-                Currency = 0,
-                Equipment = new Equipment()
-            };
-
-            db.Users.Add(user);
-            db.SaveChanges();
-
-            Console.WriteLine("SuperAdmin created:");
-            Console.WriteLine("login: superadmin");
-            Console.WriteLine("password: superadmin");
         }
     }
 }

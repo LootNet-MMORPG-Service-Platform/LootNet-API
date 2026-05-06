@@ -24,14 +24,32 @@ public class MarketplaceController : Controller
     [HttpPost("listing/weapons")]
     public async Task<IActionResult> GetWeapons([FromBody] WeaponQueryDTO query)
     {
-        var result = await _marketplaceService.GetWeaponsAsync(query);
+        var userId = User.GetUserId();
+        var result = await _marketplaceService.GetWeaponsAsync(userId, query);
         return Ok(result);
     }
 
     [HttpPost("listing/armors")]
     public async Task<IActionResult> GetArmors([FromBody] ArmorQueryDTO query)
     {
-        var result = await _marketplaceService.GetArmorsAsync(query);
+        var userId = User.GetUserId();
+        var result = await _marketplaceService.GetArmorsAsync(userId, query);
+        return Ok(result);
+    }
+
+    [HttpGet("me/listings")]
+    public async Task<IActionResult> GetMyListings()
+    {
+        var userId = User.GetUserId();
+        var result = await _marketplaceService.GetMyListingsAsync(userId);
+        return Ok(result);
+    }
+
+    [HttpGet("me/transactions")]
+    public async Task<IActionResult> GetMyTransactions()
+    {
+        var userId = User.GetUserId();
+        var result = await _marketplaceService.GetMyTransactionsAsync(userId);
         return Ok(result);
     }
 
@@ -50,10 +68,15 @@ public class MarketplaceController : Controller
     [HttpPost("{id}/buy")]
     public async Task<IActionResult> Buy(Guid id)
     {
-        var userId = User.GetUserId();
-
-        await _marketplaceService.BuyItemAsync(userId, id);
-
-        return Ok();
+        try
+        {
+            var userId = User.GetUserId();
+            await _marketplaceService.BuyItemAsync(userId, id);
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

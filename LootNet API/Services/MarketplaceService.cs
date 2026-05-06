@@ -23,14 +23,14 @@ public class MarketplaceService : IMarketplaceService
         _realtimeNotifier = realtimeNotifier;
     }
 
-    public async Task<PagedResultDTO<WeaponMarketDTO>> GetWeaponsAsync(WeaponQueryDTO q)
+    public async Task<PagedResultDTO<WeaponMarketDTO>> GetWeaponsAsync(Guid userId, WeaponQueryDTO q)
     {
         if (!q.Price?.IsValid ?? false) throw new InvalidOperationException("Invalid price range");
         if (!q.Cut?.IsValid ?? false) throw new InvalidOperationException("Invalid cut range");
         if (!q.Blunt?.IsValid ?? false) throw new InvalidOperationException("Invalid blunt range");
 
         var listings = await _context.MarketListings
-            .Where(x => !x.IsSold && x.Category == ItemCategory.Weapon)
+            .Where(x => !x.IsSold && x.Category == ItemCategory.Weapon && x.SellerId != userId)
             .ToListAsync();
 
         var weapons = await _context.Weapons
@@ -71,14 +71,14 @@ public class MarketplaceService : IMarketplaceService
         };
     }
 
-    public async Task<PagedResultDTO<ArmorMarketDTO>> GetArmorsAsync(ArmorQueryDTO q)
+    public async Task<PagedResultDTO<ArmorMarketDTO>> GetArmorsAsync(Guid userId, ArmorQueryDTO q)
     {
         if (!q.Price?.IsValid ?? false) throw new InvalidOperationException("Invalid price range");
         if (!q.CutResistance?.IsValid ?? false) throw new InvalidOperationException("Invalid cut range");
         if (!q.BluntResistance?.IsValid ?? false) throw new InvalidOperationException("Invalid blunt range");
 
         var listings = await _context.MarketListings
-            .Where(x => !x.IsSold && x.Category == ItemCategory.Armor)
+            .Where(x => !x.IsSold && x.Category == ItemCategory.Armor && x.SellerId != userId)
             .ToListAsync();
 
         var armors = await _context.Armors
@@ -119,6 +119,132 @@ public class MarketplaceService : IMarketplaceService
         };
     }
 
+    public async Task<List<MyMarketListingDTO>> GetMyListingsAsync(Guid userId)
+    {
+        var listings = await _context.MarketListings
+            .Where(x => !x.IsSold && x.SellerId == userId)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        var itemIds = listings.Select(x => x.ItemId).ToList();
+
+        var weapons = await _context.Weapons
+            .Include(x => x.Elements)
+            .Where(x => itemIds.Contains(x.Id))
+            .ToListAsync();
+
+        var armors = await _context.Armors
+            .Include(x => x.Elements)
+            .Where(x => itemIds.Contains(x.Id))
+            .ToListAsync();
+
+        return listings.Select(l =>
+        {
+            var weapon = weapons.FirstOrDefault(w => w.Id == l.ItemId);
+            if (weapon != null)
+            {
+                return new MyMarketListingDTO
+                {
+                    ListingId = l.Id,
+                    ItemId = weapon.Id,
+                    Name = weapon.Name,
+                    Price = l.Price,
+                    Category = ItemCategory.Weapon,
+                    CreatedAt = l.CreatedAt,
+                    WeaponType = weapon.WeaponType,
+                    Cut = weapon.Cut,
+                    Blunt = weapon.Blunt,
+                    Elements = weapon.Elements.Select(e => new ItemElementDTO
+                    {
+                        Type = e.ItemElementType,
+                        Value = e.Value
+                    }).ToList()
+                };
+            }
+
+            var armor = armors.FirstOrDefault(a => a.Id == l.ItemId);
+            if (armor != null)
+            {
+                return new MyMarketListingDTO
+                {
+                    ListingId = l.Id,
+                    ItemId = armor.Id,
+                    Name = armor.Name,
+                    Price = l.Price,
+                    Category = ItemCategory.Armor,
+                    CreatedAt = l.CreatedAt,
+                    ArmorType = armor.ArmorType,
+                    CutResistance = armor.CutResistance,
+                    BluntResistance = armor.BluntResistance,
+                    Elements = armor.Elements.Select(e => new ItemElementDTO
+                    {
+                        Type = e.ItemElementType,
+                        Value = e.Value
+                    }).ToList()
+                };
+            }
+
+            return new MyMarketListingDTO
+            {
+                ListingId = l.Id,
+                ItemId = l.ItemId,
+                Price = l.Price,
+                Category = l.Category,
+                CreatedAt = l.CreatedAt,
+                Name = "Unknown Item"
+            };
+        }).ToList();
+    }
+
+    public async Task<List<MarketTransactionDTO>> GetMyTransactionsAsync(Guid userId)
+    {
+        var transactions = await _context.Transactions
+            .Where(x => x.BuyerId == userId || x.SellerId == userId)
+            .OrderByDescending(x => x.Timestamp)
+            .ToListAsync();
+
+        var userIds = transactions
+            .SelectMany(x => new[] { x.BuyerId, x.SellerId })
+            .Distinct()
+            .ToList();
+
+        var users = await _context.Users
+            .Where(x => userIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.Username })
+            .ToListAsync();
+
+        var itemIds = transactions.Select(x => x.ItemId).Distinct().ToList();
+        var weaponNames = await _context.Weapons
+            .Where(x => itemIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.Name })
+            .ToListAsync();
+        var armorNames = await _context.Armors
+            .Where(x => itemIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.Name })
+            .ToListAsync();
+
+        return transactions.Select(t =>
+        {
+            var isSale = t.SellerId == userId;
+            var counterpartyId = isSale ? t.BuyerId : t.SellerId;
+            var counterpartyName = users.FirstOrDefault(x => x.Id == counterpartyId)?.Username ?? "Unknown";
+            var itemName = weaponNames.FirstOrDefault(x => x.Id == t.ItemId)?.Name
+                           ?? armorNames.FirstOrDefault(x => x.Id == t.ItemId)?.Name
+                           ?? "Unknown Item";
+
+            return new MarketTransactionDTO
+            {
+                TransactionId = t.Id,
+                ItemId = t.ItemId,
+                ItemName = itemName,
+                Price = t.Price,
+                Timestamp = t.Timestamp,
+                IsSale = isSale,
+                CounterpartyUsername = counterpartyName
+            };
+        }).ToList();
+    }
+
     public async Task<MarketListing> CreateListingAsync(Guid userId, CreateMarketListingDTO dto)
     {
         var item = await _context.Weapons.FirstOrDefaultAsync(x => x.Id == dto.ItemId)
@@ -126,8 +252,6 @@ public class MarketplaceService : IMarketplaceService
 
         if (item == null)
             throw new InvalidOperationException("Item not found");
-
-        await _inventoryService.MoveToMarketAsync(userId, dto.ItemId);
 
         var listing = new MarketListing
         {
@@ -154,8 +278,16 @@ public class MarketplaceService : IMarketplaceService
         if (listing == null)
             throw new InvalidOperationException("Listing not found");
 
-        var buyer = await _context.Users.FirstAsync(x => x.Id == buyerId);
-        var seller = await _context.Users.FirstAsync(x => x.Id == listing.SellerId);
+        var buyer = await _context.Users.FirstOrDefaultAsync(x => x.Id == buyerId);
+        if (buyer == null)
+            throw new InvalidOperationException("Buyer account not found. Log in again.");
+
+        var seller = await _context.Users.FirstOrDefaultAsync(x => x.Id == listing.SellerId);
+        if (seller == null)
+            throw new InvalidOperationException("Seller account not found.");
+
+        if (buyer.Id == seller.Id)
+            throw new InvalidOperationException("You cannot buy your own listing.");
 
         if (buyer.Currency < listing.Price)
             throw new InvalidOperationException("Not enough currency");
