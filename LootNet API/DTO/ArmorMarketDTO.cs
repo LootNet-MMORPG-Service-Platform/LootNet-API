@@ -7,6 +7,7 @@ public class ArmorMarketDTO
 {
     public Guid ListingId { get; set; }
     public Guid ItemId { get; set; }
+    public Guid SellerId { get; set; }
 
     public string Name { get; set; } = "";
 
@@ -18,4 +19,6 @@ public class ArmorMarketDTO
     public double BluntResistance { get; set; }
 
     public List<ItemElementDTO> Elements { get; set; } = new();
+    public string SellerUsername { get; set; } = string.Empty;
+    public string? SellerProfileImagePath { get; set; }
 }

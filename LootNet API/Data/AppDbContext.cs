@@ -36,6 +36,7 @@ public class AppDbContext : DbContext
     public DbSet<StageScenario> StageScenarios { get; set; }
     public DbSet<ScenarioSlot> ScenarioSlots { get; set; }
     public DbSet<EnemyClassProfile> EnemyClassProfiles { get; set; }
+    public DbSet<ChatMessage> ChatMessages { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options) { }

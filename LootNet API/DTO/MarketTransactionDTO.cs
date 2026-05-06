@@ -9,4 +9,5 @@ public class MarketTransactionDTO
     public DateTime Timestamp { get; set; }
     public bool IsSale { get; set; }
     public string CounterpartyUsername { get; set; } = "";
+    public Guid CounterpartyUserId { get; set; }
 }

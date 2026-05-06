@@ -48,11 +48,19 @@ public class MarketplaceService : IMarketplaceService
         var filtered = joined
             .Where(x => PassWeaponFilters(q, x.Listing, x.Weapon))
             .ToList();
+        var sellerIds = filtered.Select(x => x.Listing.SellerId).Distinct().ToList();
+        var sellers = await _context.Users.Where(x => sellerIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.Username, x.ProfileImagePath })
+            .ToListAsync();
 
         var total = filtered.Count;
 
         var projected = filtered
-            .Select(x => MapWeapon(x.Listing, x.Weapon))
+            .Select(x =>
+            {
+                var seller = sellers.FirstOrDefault(s => s.Id == x.Listing.SellerId);
+                return MapWeapon(x.Listing, x.Weapon, seller?.Username, seller?.ProfileImagePath);
+            })
             .ToList();
 
         var sorted = ApplyWeaponSort(projected, q);
@@ -96,11 +104,19 @@ public class MarketplaceService : IMarketplaceService
         var filtered = joined
             .Where(x => PassArmorFilters(q, x.Listing, x.Armor))
             .ToList();
+        var sellerIds = filtered.Select(x => x.Listing.SellerId).Distinct().ToList();
+        var sellers = await _context.Users.Where(x => sellerIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.Username, x.ProfileImagePath })
+            .ToListAsync();
 
         var total = filtered.Count;
 
         var projected = filtered
-            .Select(x => MapArmor(x.Listing, x.Armor))
+            .Select(x =>
+            {
+                var seller = sellers.FirstOrDefault(s => s.Id == x.Listing.SellerId);
+                return MapArmor(x.Listing, x.Armor, seller?.Username, seller?.ProfileImagePath);
+            })
             .ToList();
 
         var sorted = ApplyArmorSort(projected, q);
@@ -119,12 +135,29 @@ public class MarketplaceService : IMarketplaceService
         };
     }
 
-    public async Task<List<MyMarketListingDTO>> GetMyListingsAsync(Guid userId)
+    public async Task<PagedResultDTO<MyMarketListingDTO>> GetMyListingsAsync(Guid userId, MyListingsQueryDTO query)
     {
         var listings = await _context.MarketListings
             .Where(x => !x.IsSold && x.SellerId == userId)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim();
+            listings = listings.Where(x => x.ItemId != Guid.Empty).ToList();
+            var searchLower = search.ToLower();
+            var weaponIds = await _context.Weapons.Where(x => x.Name.ToLower().Contains(searchLower)).Select(x => x.Id).ToListAsync();
+            var armorIds = await _context.Armors.Where(x => x.Name.ToLower().Contains(searchLower)).Select(x => x.Id).ToListAsync();
+            var ids = weaponIds.Concat(armorIds).ToHashSet();
+            listings = listings.Where(x => ids.Contains(x.ItemId)).ToList();
+        }
+
+        if (query.Category.HasValue)
+            listings = listings.Where(x => x.Category == query.Category.Value).ToList();
+
+        if (query.Price is not null)
+            listings = listings.Where(x => PassRange(query.Price, x.Price)).ToList();
 
         var itemIds = listings.Select(x => x.ItemId).ToList();
 
@@ -138,7 +171,7 @@ public class MarketplaceService : IMarketplaceService
             .Where(x => itemIds.Contains(x.Id))
             .ToListAsync();
 
-        return listings.Select(l =>
+        var mapped = listings.Select(l =>
         {
             var weapon = weapons.FirstOrDefault(w => w.Id == l.ItemId);
             if (weapon != null)
@@ -194,9 +227,92 @@ public class MarketplaceService : IMarketplaceService
                 Name = "Unknown Item"
             };
         }).ToList();
+
+        var paged = mapped
+            .Skip((query.PageNumber - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToList();
+
+        return new PagedResultDTO<MyMarketListingDTO>
+        {
+            Items = paged,
+            TotalCount = mapped.Count,
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize
+        };
     }
 
-    public async Task<List<MarketTransactionDTO>> GetMyTransactionsAsync(Guid userId)
+    public async Task<PagedResultDTO<MyMarketListingDTO>> GetListingsBySellerAsync(Guid sellerId, MyListingsQueryDTO query)
+    {
+        var listings = await _context.MarketListings
+            .Where(x => !x.IsSold && x.SellerId == sellerId)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var searchLower = query.Search.Trim().ToLower();
+            var weaponIds = await _context.Weapons.Where(x => x.Name.ToLower().Contains(searchLower)).Select(x => x.Id).ToListAsync();
+            var armorIds = await _context.Armors.Where(x => x.Name.ToLower().Contains(searchLower)).Select(x => x.Id).ToListAsync();
+            var ids = weaponIds.Concat(armorIds).ToHashSet();
+            listings = listings.Where(x => ids.Contains(x.ItemId)).ToList();
+        }
+
+        if (query.Category.HasValue)
+            listings = listings.Where(x => x.Category == query.Category.Value).ToList();
+
+        if (query.Price is not null)
+            listings = listings.Where(x => PassRange(query.Price, x.Price)).ToList();
+
+        var itemIds = listings.Select(x => x.ItemId).ToList();
+        var weapons = await _context.Weapons.Include(x => x.Elements).Where(x => itemIds.Contains(x.Id)).ToListAsync();
+        var armors = await _context.Armors.Include(x => x.Elements).Where(x => itemIds.Contains(x.Id)).ToListAsync();
+
+        var mapped = listings.Select(l =>
+        {
+            var weapon = weapons.FirstOrDefault(w => w.Id == l.ItemId);
+            if (weapon != null)
+            {
+                return new MyMarketListingDTO
+                {
+                    ListingId = l.Id, ItemId = weapon.Id, Name = weapon.Name, Price = l.Price, Category = ItemCategory.Weapon, CreatedAt = l.CreatedAt,
+                    WeaponType = weapon.WeaponType, Cut = weapon.Cut, Blunt = weapon.Blunt,
+                    Elements = weapon.Elements.Select(e => new ItemElementDTO { Type = e.ItemElementType, Value = e.Value }).ToList()
+                };
+            }
+
+            var armor = armors.FirstOrDefault(a => a.Id == l.ItemId);
+            if (armor != null)
+            {
+                return new MyMarketListingDTO
+                {
+                    ListingId = l.Id, ItemId = armor.Id, Name = armor.Name, Price = l.Price, Category = ItemCategory.Armor, CreatedAt = l.CreatedAt,
+                    ArmorType = armor.ArmorType, CutResistance = armor.CutResistance, BluntResistance = armor.BluntResistance,
+                    Elements = armor.Elements.Select(e => new ItemElementDTO { Type = e.ItemElementType, Value = e.Value }).ToList()
+                };
+            }
+
+            return new MyMarketListingDTO { ListingId = l.Id, ItemId = l.ItemId, Price = l.Price, Category = l.Category, CreatedAt = l.CreatedAt, Name = "Unknown Item" };
+        }).ToList();
+
+        var paged = mapped.Skip((query.PageNumber - 1) * query.PageSize).Take(query.PageSize).ToList();
+        return new PagedResultDTO<MyMarketListingDTO> { Items = paged, TotalCount = mapped.Count, PageNumber = query.PageNumber, PageSize = query.PageSize };
+    }
+
+    public async Task<MyListingsSummaryDTO> GetMyListingsSummaryAsync(Guid userId)
+    {
+        var listings = await _context.MarketListings
+            .Where(x => !x.IsSold && x.SellerId == userId)
+            .ToListAsync();
+
+        return new MyListingsSummaryDTO
+        {
+            TotalItemsListed = listings.Count,
+            TotalListedValue = listings.Sum(x => x.Price)
+        };
+    }
+
+    public async Task<PagedResultDTO<MarketTransactionDTO>> GetMyTransactionsAsync(Guid userId, MarketTransactionsQueryDTO query)
     {
         var transactions = await _context.Transactions
             .Where(x => x.BuyerId == userId || x.SellerId == userId)
@@ -223,7 +339,7 @@ public class MarketplaceService : IMarketplaceService
             .Select(x => new { x.Id, x.Name })
             .ToListAsync();
 
-        return transactions.Select(t =>
+        var mapped = transactions.Select(t =>
         {
             var isSale = t.SellerId == userId;
             var counterpartyId = isSale ? t.BuyerId : t.SellerId;
@@ -240,9 +356,90 @@ public class MarketplaceService : IMarketplaceService
                 Price = t.Price,
                 Timestamp = t.Timestamp,
                 IsSale = isSale,
-                CounterpartyUsername = counterpartyName
+                CounterpartyUsername = counterpartyName,
+                CounterpartyUserId = counterpartyId
             };
         }).ToList();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim();
+            mapped = mapped.Where(x =>
+                    x.ItemName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    x.CounterpartyUsername.Contains(search, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        if (query.IsSale.HasValue)
+            mapped = mapped.Where(x => x.IsSale == query.IsSale.Value).ToList();
+
+        if (query.From.HasValue)
+            mapped = mapped.Where(x => x.Timestamp >= query.From.Value).ToList();
+
+        if (query.To.HasValue)
+            mapped = mapped.Where(x => x.Timestamp <= query.To.Value).ToList();
+
+        if (query.Price is not null)
+            mapped = mapped.Where(x => PassRange(query.Price, x.Price)).ToList();
+
+        var paged = mapped
+            .Skip((query.PageNumber - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToList();
+
+        return new PagedResultDTO<MarketTransactionDTO>
+        {
+            Items = paged,
+            TotalCount = mapped.Count,
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize
+        };
+    }
+
+    public async Task<MarketTransactionsSummaryDTO> GetMyTransactionsSummaryAsync(Guid userId)
+    {
+        var transactions = await _context.Transactions
+            .Where(x => x.BuyerId == userId || x.SellerId == userId)
+            .ToListAsync();
+
+        var totalSold = transactions.Where(x => x.SellerId == userId).Sum(x => (decimal)x.Price);
+        var totalBought = transactions.Where(x => x.BuyerId == userId).Sum(x => (decimal)x.Price);
+
+        return new MarketTransactionsSummaryDTO
+        {
+            TotalSold = totalSold,
+            TotalBought = totalBought
+        };
+    }
+
+    public async Task ChangeListingPriceAsync(Guid userId, Guid listingId, decimal price)
+    {
+        if (price <= 0)
+            throw new InvalidOperationException("Price must be greater than 0.");
+
+        var listing = await _context.MarketListings.FirstOrDefaultAsync(x => x.Id == listingId && !x.IsSold);
+        if (listing == null)
+            throw new InvalidOperationException("Listing not found.");
+        if (listing.SellerId != userId)
+            throw new InvalidOperationException("You can update only your own listing.");
+
+        listing.Price = price;
+        await _context.SaveChangesAsync();
+        await NotifyAsync("market", "listing-price-changed", userId, new { listingId, price });
+    }
+
+    public async Task CancelListingAsync(Guid userId, Guid listingId)
+    {
+        var listing = await _context.MarketListings.FirstOrDefaultAsync(x => x.Id == listingId && !x.IsSold);
+        if (listing == null)
+            throw new InvalidOperationException("Listing not found.");
+        if (listing.SellerId != userId)
+            throw new InvalidOperationException("You can cancel only your own listing.");
+
+        await _inventoryService.ReturnFromMarketAsync(userId, listing.ItemId);
+        _context.MarketListings.Remove(listing);
+        await _context.SaveChangesAsync();
+        await NotifyAsync("market", "listing-cancelled", userId, new { listingId });
     }
 
     public async Task<MarketListing> CreateListingAsync(Guid userId, CreateMarketListingDTO dto)
@@ -415,12 +612,13 @@ public class MarketplaceService : IMarketplaceService
             _ => list.OrderBy(x => x.Price).ToList()
         };
     }
-    private WeaponMarketDTO MapWeapon(MarketListing l, Weapon w)
+    private WeaponMarketDTO MapWeapon(MarketListing l, Weapon w, string? sellerUsername, string? sellerProfileImagePath)
     {
         return new WeaponMarketDTO
         {
             ListingId = l.Id,
             ItemId = w.Id,
+            SellerId = l.SellerId,
             Name = w.Name,
             Price = l.Price,
             WeaponType = w.WeaponType,
@@ -430,15 +628,18 @@ public class MarketplaceService : IMarketplaceService
             {
                 Type = e.ItemElementType,
                 Value = e.Value
-            }).ToList()
+            }).ToList(),
+            SellerUsername = sellerUsername ?? "Unknown",
+            SellerProfileImagePath = sellerProfileImagePath
         };
     }
-    private ArmorMarketDTO MapArmor(MarketListing l, Armor a)
+    private ArmorMarketDTO MapArmor(MarketListing l, Armor a, string? sellerUsername, string? sellerProfileImagePath)
     {
         return new ArmorMarketDTO
         {
             ListingId = l.Id,
             ItemId = a.Id,
+            SellerId = l.SellerId,
             Name = a.Name,
             Price = l.Price,
             ArmorType = a.ArmorType,
@@ -448,7 +649,9 @@ public class MarketplaceService : IMarketplaceService
             {
                 Type = e.ItemElementType,
                 Value = e.Value
-            }).ToList()
+            }).ToList(),
+            SellerUsername = sellerUsername ?? "Unknown",
+            SellerProfileImagePath = sellerProfileImagePath
         };
     }
 

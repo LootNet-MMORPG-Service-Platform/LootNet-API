@@ -146,7 +146,7 @@ public class GenerationAdminServiceTests
             {
                 Category = ItemCategory.Weapon,
                 WeaponType = WeaponType.Sword,
-                ArmorType = ArmorType.Head,
+                ArmorType = ArmorType.Helmet,
                 IsFallback = false
             }));
     }

@@ -22,16 +22,18 @@ public class MobileController : ControllerBase
     private readonly IInventoryService _inventoryService;
     private readonly IEquipmentService _equipmentService;
     private readonly IRealtimeNotifier _realtimeNotifier;
+    private readonly IProfileService _profileService;
 
     public MobileController(AppDbContext context,
         IItemGenerationService itemGenerationService, IInventoryService inventoryService, IEquipmentService equipmentService,
-        IRealtimeNotifier realtimeNotifier)
+        IRealtimeNotifier realtimeNotifier, IProfileService profileService)
     {
         _context = context;
         _itemGenerationService = itemGenerationService;
         _inventoryService = inventoryService;
         _equipmentService = equipmentService;
         _realtimeNotifier = realtimeNotifier;
+        _profileService = profileService;
     }
 
     [HttpGet("me")]
@@ -48,8 +50,25 @@ public class MobileController : ControllerBase
         {
             Username = user.Username,
             Currency = user.Currency,
-            Role = user.Role
+            Role = user.Role,
+            ProfileImagePath = user.ProfileImagePath
         });
+    }
+
+    [HttpPost("me/pfp")]
+    [RequestSizeLimit(5_000_000)]
+    public async Task<IActionResult> UploadProfilePicture([FromForm] IFormFile file)
+    {
+        try
+        {
+            var userId = User.GetUserId();
+            var profileImagePath = await _profileService.UploadProfilePictureAsync(userId, file);
+            return Ok(new { profileImagePath });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("daily")]

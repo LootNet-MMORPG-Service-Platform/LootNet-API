@@ -216,7 +216,7 @@ public class ItemGeneratorTests
         {
             Id = Guid.NewGuid(),
             Category = ItemCategory.Armor,
-            ArmorType = ArmorType.Body,
+            ArmorType = ArmorType.Chestplate,
             Parameters = new List<ItemParameterSetting>
             {
                 new()
@@ -252,7 +252,7 @@ public class ItemGeneratorTests
         var item = await generator.GenerateItemAsync(user.Id) as Armor;
 
         Assert.NotNull(item);
-        Assert.Equal(ArmorType.Body, item.ArmorType);
+        Assert.Equal(ArmorType.Chestplate, item.ArmorType);
         Assert.InRange(item.BluntResistance, 5, 10);
         Assert.Single(item.Elements);
         Assert.InRange(item.Elements.First().Value, 2, 4);
@@ -289,7 +289,7 @@ public class ItemGeneratorTests
         {
             Id = Guid.NewGuid(),
             Category = ItemCategory.Armor,
-            ArmorType = ArmorType.Boots,
+            ArmorType = ArmorType.Sabatons,
             Parameters = new List<ItemParameterSetting>
             {
                 new() { Id = Guid.NewGuid(), Parameter = ItemParameter.CutResistance, Segments = new List<DistributionSegment> { new() { Min = 3, Max = 6, Weight = 1 } } }

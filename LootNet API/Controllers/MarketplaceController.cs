@@ -37,19 +37,35 @@ public class MarketplaceController : Controller
         return Ok(result);
     }
 
-    [HttpGet("me/listings")]
-    public async Task<IActionResult> GetMyListings()
+    [HttpPost("me/listings")]
+    public async Task<IActionResult> GetMyListings([FromBody] MyListingsQueryDTO query)
     {
         var userId = User.GetUserId();
-        var result = await _marketplaceService.GetMyListingsAsync(userId);
+        var result = await _marketplaceService.GetMyListingsAsync(userId, query);
         return Ok(result);
     }
 
-    [HttpGet("me/transactions")]
-    public async Task<IActionResult> GetMyTransactions()
+    [HttpGet("me/listings/summary")]
+    public async Task<IActionResult> GetMyListingsSummary()
     {
         var userId = User.GetUserId();
-        var result = await _marketplaceService.GetMyTransactionsAsync(userId);
+        var result = await _marketplaceService.GetMyListingsSummaryAsync(userId);
+        return Ok(result);
+    }
+
+    [HttpPost("me/transactions")]
+    public async Task<IActionResult> GetMyTransactions([FromBody] MarketTransactionsQueryDTO query)
+    {
+        var userId = User.GetUserId();
+        var result = await _marketplaceService.GetMyTransactionsAsync(userId, query);
+        return Ok(result);
+    }
+
+    [HttpGet("me/transactions/summary")]
+    public async Task<IActionResult> GetMyTransactionsSummary()
+    {
+        var userId = User.GetUserId();
+        var result = await _marketplaceService.GetMyTransactionsSummaryAsync(userId);
         return Ok(result);
     }
 
@@ -72,6 +88,36 @@ public class MarketplaceController : Controller
         {
             var userId = User.GetUserId();
             await _marketplaceService.BuyItemAsync(userId, id);
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id}/change-price")]
+    public async Task<IActionResult> ChangePrice(Guid id, [FromBody] ChangeListingPriceDTO dto)
+    {
+        try
+        {
+            var userId = User.GetUserId();
+            await _marketplaceService.ChangeListingPriceAsync(userId, id, dto.Price);
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id}/cancel")]
+    public async Task<IActionResult> Cancel(Guid id)
+    {
+        try
+        {
+            var userId = User.GetUserId();
+            await _marketplaceService.CancelListingAsync(userId, id);
             return Ok();
         }
         catch (InvalidOperationException ex)

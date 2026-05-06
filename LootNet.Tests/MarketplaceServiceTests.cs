@@ -244,6 +244,23 @@ public class MarketplaceServiceTests
     }
 
     [Fact]
+    public async Task GetWeapons_ContainsSellerInfo()
+    {
+        var (db, factory) = Create();
+        var seller = CreateUser();
+        var viewer = CreateUser();
+        var w = new Weapon { Id = Guid.NewGuid(), Name = "Seller Sword", Category = ItemCategory.Weapon };
+        db.Users.AddRange(seller, viewer);
+        db.Weapons.Add(w);
+        db.MarketListings.Add(new MarketListing { Id = Guid.NewGuid(), SellerId = seller.Id, ItemId = w.Id, Price = 100, Category = ItemCategory.Weapon });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+        var result = await service.GetWeaponsAsync(viewer.Id, new WeaponQueryDTO { PageNumber = 1, PageSize = 10 });
+        Assert.Equal(seller.Username, result.Items.First().SellerUsername);
+    }
+
+    [Fact]
     public async Task GetWeapons_Throws_OnInvalidRange()
     {
         var (db, factory) = Create();
@@ -288,10 +305,32 @@ public class MarketplaceServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db, factory);
-        var result = await service.GetMyListingsAsync(user.Id);
+        var result = await service.GetMyListingsAsync(user.Id, new MyListingsQueryDTO { PageNumber = 1, PageSize = 10 });
 
-        Assert.Single(result);
-        Assert.Equal("A", result[0].Name);
+        Assert.Single(result.Items);
+        Assert.Equal("A", result.Items[0].Name);
+    }
+
+    [Fact]
+    public async Task GetListingsBySeller_ReturnsOnlyRequestedSeller()
+    {
+        var (db, factory) = Create();
+        var s1 = CreateUser();
+        var s2 = CreateUser();
+        var w1 = new Weapon { Id = Guid.NewGuid(), Name = "A", Category = ItemCategory.Weapon };
+        var w2 = new Weapon { Id = Guid.NewGuid(), Name = "B", Category = ItemCategory.Weapon };
+        db.Users.AddRange(s1, s2);
+        db.Weapons.AddRange(w1, w2);
+        db.MarketListings.AddRange(
+            new MarketListing { Id = Guid.NewGuid(), SellerId = s1.Id, ItemId = w1.Id, Price = 100, Category = ItemCategory.Weapon, IsSold = false },
+            new MarketListing { Id = Guid.NewGuid(), SellerId = s2.Id, ItemId = w2.Id, Price = 120, Category = ItemCategory.Weapon, IsSold = false }
+        );
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+        var result = await service.GetListingsBySellerAsync(s1.Id, new MyListingsQueryDTO { PageNumber = 1, PageSize = 10 });
+        Assert.Single(result.Items);
+        Assert.Equal("A", result.Items[0].Name);
     }
 
     [Fact]
@@ -312,10 +351,108 @@ public class MarketplaceServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db, factory);
-        var result = await service.GetMyTransactionsAsync(user.Id);
+        var result = await service.GetMyTransactionsAsync(user.Id, new MarketTransactionsQueryDTO { PageNumber = 1, PageSize = 10 });
 
-        Assert.Equal(2, result.Count);
-        Assert.Contains(result, x => x.IsSale && x.CounterpartyUsername == buyer.Username);
-        Assert.Contains(result, x => !x.IsSale && x.CounterpartyUsername == seller.Username);
+        Assert.Equal(2, result.Items.Count);
+        Assert.Contains(result.Items, x => x.IsSale && x.CounterpartyUsername == buyer.Username);
+        Assert.Contains(result.Items, x => !x.IsSale && x.CounterpartyUsername == seller.Username);
+    }
+
+    [Fact]
+    public async Task ChangeListingPrice_UpdatesPrice_ForOwner()
+    {
+        var (db, factory) = Create();
+        var seller = CreateUser();
+        var weapon = new Weapon { Id = Guid.NewGuid(), Name = "Sword", Category = ItemCategory.Weapon };
+        db.Users.Add(seller);
+        db.Weapons.Add(weapon);
+        db.MarketListings.Add(new MarketListing
+        {
+            Id = Guid.NewGuid(),
+            SellerId = seller.Id,
+            ItemId = weapon.Id,
+            Price = 100,
+            Category = ItemCategory.Weapon,
+            IsSold = false
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+        var listingId = db.MarketListings.First().Id;
+        await service.ChangeListingPriceAsync(seller.Id, listingId, 250);
+
+        Assert.Equal(250, db.MarketListings.First().Price);
+    }
+
+    [Fact]
+    public async Task CancelListing_RemovesListing_AndReturnsItemToInventory()
+    {
+        var (db, factory) = Create();
+        var seller = CreateUser();
+        var weapon = new Weapon { Id = Guid.NewGuid(), Name = "Sword", Category = ItemCategory.Weapon };
+        db.Users.Add(seller);
+        db.Weapons.Add(weapon);
+        db.MarketListings.Add(new MarketListing
+        {
+            Id = Guid.NewGuid(),
+            SellerId = seller.Id,
+            ItemId = weapon.Id,
+            Price = 150,
+            Category = ItemCategory.Weapon,
+            IsSold = false
+        });
+        db.MarketInventoryItems.Add(new MarketInventoryItem { Id = Guid.NewGuid(), UserId = seller.Id, ItemId = weapon.Id });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+        var listingId = db.MarketListings.First().Id;
+        await service.CancelListingAsync(seller.Id, listingId);
+
+        Assert.Empty(db.MarketListings);
+        Assert.Empty(db.MarketInventoryItems);
+        Assert.Single(db.InventoryItems.Where(x => x.UserId == seller.Id && x.ItemId == weapon.Id));
+    }
+
+    [Fact]
+    public async Task GetMyListingsSummary_ReturnsCountAndTotalValue()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser();
+        db.Users.Add(user);
+        db.MarketListings.AddRange(
+            new MarketListing { Id = Guid.NewGuid(), SellerId = user.Id, ItemId = Guid.NewGuid(), Price = 100, Category = ItemCategory.Weapon, IsSold = false },
+            new MarketListing { Id = Guid.NewGuid(), SellerId = user.Id, ItemId = Guid.NewGuid(), Price = 250, Category = ItemCategory.Armor, IsSold = false },
+            new MarketListing { Id = Guid.NewGuid(), SellerId = user.Id, ItemId = Guid.NewGuid(), Price = 500, Category = ItemCategory.Armor, IsSold = true }
+        );
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+        var summary = await service.GetMyListingsSummaryAsync(user.Id);
+
+        Assert.Equal(2, summary.TotalItemsListed);
+        Assert.Equal(350, summary.TotalListedValue);
+    }
+
+    [Fact]
+    public async Task GetMyTransactionsSummary_ReturnsSoldAndBoughtTotals()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser();
+        var buyer = CreateUser();
+        var seller = CreateUser();
+        db.Users.AddRange(user, buyer, seller);
+        db.Transactions.AddRange(
+            new Transaction { Id = Guid.NewGuid(), BuyerId = buyer.Id, SellerId = user.Id, ItemId = Guid.NewGuid(), Price = 200, Timestamp = DateTime.UtcNow },
+            new Transaction { Id = Guid.NewGuid(), BuyerId = user.Id, SellerId = seller.Id, ItemId = Guid.NewGuid(), Price = 120, Timestamp = DateTime.UtcNow },
+            new Transaction { Id = Guid.NewGuid(), BuyerId = user.Id, SellerId = seller.Id, ItemId = Guid.NewGuid(), Price = 80, Timestamp = DateTime.UtcNow }
+        );
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+        var summary = await service.GetMyTransactionsSummaryAsync(user.Id);
+
+        Assert.Equal(200, summary.TotalSold);
+        Assert.Equal(200, summary.TotalBought);
+        Assert.Equal(0, summary.Difference);
     }
 }

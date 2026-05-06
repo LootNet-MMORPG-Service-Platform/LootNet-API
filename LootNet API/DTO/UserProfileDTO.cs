@@ -7,4 +7,5 @@ public class UserProfileDTO
     public string Username { get; set; } = default!;
     public UserRole Role { get; set; }
     public decimal Currency { get; set; }
+    public string? ProfileImagePath { get; set; }
 }

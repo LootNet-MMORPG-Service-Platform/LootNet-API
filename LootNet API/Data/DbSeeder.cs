@@ -32,25 +32,20 @@ public static class DbSeeder
         context.Users.AddRange(users);
         context.SaveChanges();
 
-        context.RefreshTokens.AddRange(
-            new RefreshToken
-            {
-                UserId = users[0].Id,
-                Token = "seed-refresh-player1",
-                ExpiresAt = now.AddDays(7)
-            },
-            new RefreshToken
-            {
-                UserId = users[1].Id,
-                Token = "seed-refresh-player2",
-                ExpiresAt = now.AddDays(7)
-            });
+        foreach (var user in users)
+        {
+            context.RefreshTokens.AddRange(
+                new RefreshToken { UserId = user.Id, Token = $"seed-refresh-{user.Username.ToLower()}-a", ExpiresAt = now.AddDays(7) },
+                new RefreshToken { UserId = user.Id, Token = $"seed-refresh-{user.Username.ToLower()}-b", ExpiresAt = now.AddDays(14) },
+                new RefreshToken { UserId = user.Id, Token = $"seed-refresh-{user.Username.ToLower()}-c", ExpiresAt = now.AddDays(21) });
+        }
 
         context.SaveChanges();
 
         SeedItemsAndInventories(context, generator, users);
 
         SeedMarketplace(context, users, now);
+        SeedChat(context, users, now);
         SeedRuns(context, users, classProfiles, now);
         SeedAdminArtifacts(context, users, now);
 
@@ -70,11 +65,11 @@ public static class DbSeeder
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Sword, Weight = 45 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Shortsword, Weight = 25 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Bow, Weight = 15 },
-            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Body, Weight = 30 },
-            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Head, Weight = 20 },
-            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Legs, Weight = 20 },
-            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Boots, Weight = 15 },
-            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Gloves, Weight = 15 }
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Chestplate, Weight = 30 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Helmet, Weight = 20 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Greaves, Weight = 20 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Sabatons, Weight = 15 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Gauntlets, Weight = 15 }
         ]);
 
         profile.Rules.AddRange(
@@ -84,12 +79,12 @@ public static class DbSeeder
             CreateWeaponRule(profile.Id, WeaponType.Bow, false, 8, 18, 1, 8),
             CreateWeaponRule(profile.Id, WeaponType.Sword, true, 3, 8, 1, 5),
 
-            CreateArmorRule(profile.Id, ArmorType.Head, false, 5, 14, 2, 8),
-            CreateArmorRule(profile.Id, ArmorType.Body, false, 8, 18, 4, 10),
-            CreateArmorRule(profile.Id, ArmorType.Legs, false, 6, 15, 2, 8),
-            CreateArmorRule(profile.Id, ArmorType.Boots, false, 4, 10, 2, 7),
-            CreateArmorRule(profile.Id, ArmorType.Gloves, false, 4, 10, 2, 7),
-            CreateArmorRule(profile.Id, ArmorType.Body, true, 2, 6, 1, 4)
+            CreateArmorRule(profile.Id, ArmorType.Helmet, false, 5, 14, 2, 8),
+            CreateArmorRule(profile.Id, ArmorType.Chestplate, false, 8, 18, 4, 10),
+            CreateArmorRule(profile.Id, ArmorType.Greaves, false, 6, 15, 2, 8),
+            CreateArmorRule(profile.Id, ArmorType.Sabatons, false, 4, 10, 2, 7),
+            CreateArmorRule(profile.Id, ArmorType.Gauntlets, false, 4, 10, 2, 7),
+            CreateArmorRule(profile.Id, ArmorType.Chestplate, true, 2, 6, 1, 4)
         ]);
 
         return profile;
@@ -107,7 +102,7 @@ public static class DbSeeder
         [
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.TwoHandSword, Weight = 40 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Polearm, Weight = 35 },
-            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Body, Weight = 25 }
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Chestplate, Weight = 25 }
         ]);
 
         profile.Rules.AddRange(
@@ -115,8 +110,8 @@ public static class DbSeeder
             CreateWeaponRule(profile.Id, WeaponType.TwoHandSword, false, 18, 38, 8, 22),
             CreateWeaponRule(profile.Id, WeaponType.Polearm, false, 16, 34, 7, 20),
             CreateWeaponRule(profile.Id, WeaponType.TwoHandSword, true, 8, 16, 3, 10),
-            CreateArmorRule(profile.Id, ArmorType.Body, false, 14, 28, 6, 16),
-            CreateArmorRule(profile.Id, ArmorType.Body, true, 7, 14, 3, 8)
+            CreateArmorRule(profile.Id, ArmorType.Chestplate, false, 14, 28, 6, 16),
+            CreateArmorRule(profile.Id, ArmorType.Chestplate, true, 7, 14, 3, 8)
         ]);
 
         return profile;
@@ -337,11 +332,11 @@ public static class DbSeeder
             {
                 switch (armor.ArmorType)
                 {
-                    case ArmorType.Head: equipment.HeadId = armor.Id; break;
-                    case ArmorType.Body: equipment.BodyId = armor.Id; break;
-                    case ArmorType.Gloves: equipment.GlovesId = armor.Id; break;
-                    case ArmorType.Legs: equipment.LegsId = armor.Id; break;
-                    case ArmorType.Boots: equipment.BootsId = armor.Id; break;
+                    case ArmorType.Helmet: equipment.HeadId = armor.Id; break;
+                    case ArmorType.Chestplate: equipment.BodyId = armor.Id; break;
+                    case ArmorType.Gauntlets: equipment.GlovesId = armor.Id; break;
+                    case ArmorType.Greaves: equipment.LegsId = armor.Id; break;
+                    case ArmorType.Sabatons: equipment.BootsId = armor.Id; break;
                 }
             }
 
@@ -359,53 +354,82 @@ public static class DbSeeder
 
     private static void SeedMarketplace(AppDbContext context, List<User> users, DateTime now)
     {
-        var seller1 = users[0];
-        var seller2 = users[1];
-        var buyer = users[2];
+        var rand = new Random(42);
+        var playerUsers = users.Where(x => x.Role == UserRole.Player).ToList();
+        var allInventory = context.InventoryItems.ToList();
 
-        var seller1Item = context.InventoryItems.First(x => x.UserId == seller1.Id).ItemId;
-        var seller2Item = context.InventoryItems.First(x => x.UserId == seller2.Id).ItemId;
-
-        var listing1 = new MarketListing
+        foreach (var seller in playerUsers)
         {
-            Id = Guid.NewGuid(),
-            SellerId = seller1.Id,
-            ItemId = seller1Item,
-            Price = 120,
-            Category = context.Weapons.Any(x => x.Id == seller1Item) ? ItemCategory.Weapon : ItemCategory.Armor,
-            CreatedAt = now.AddHours(-3),
-            IsSold = false
-        };
+            var sellerItems = allInventory.Where(x => x.UserId == seller.Id).Take(4).ToList();
+            foreach (var inv in sellerItems)
+            {
+                var category = context.Weapons.Any(x => x.Id == inv.ItemId) ? ItemCategory.Weapon : ItemCategory.Armor;
+                var sold = rand.NextDouble() < 0.35;
+                var price = rand.Next(80, 650);
+                var listing = new MarketListing
+                {
+                    Id = Guid.NewGuid(),
+                    SellerId = seller.Id,
+                    ItemId = inv.ItemId,
+                    Price = price,
+                    Category = category,
+                    CreatedAt = now.AddHours(-rand.Next(1, 72)),
+                    IsSold = sold
+                };
+                context.MarketListings.Add(listing);
 
-        var listing2 = new MarketListing
-        {
-            Id = Guid.NewGuid(),
-            SellerId = seller2.Id,
-            ItemId = seller2Item,
-            Price = 220,
-            Category = context.Weapons.Any(x => x.Id == seller2Item) ? ItemCategory.Weapon : ItemCategory.Armor,
-            CreatedAt = now.AddHours(-2),
-            IsSold = true
-        };
+                if (!sold)
+                {
+                    context.MarketInventoryItems.Add(new MarketInventoryItem
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = seller.Id,
+                        ItemId = inv.ItemId
+                    });
+                }
+                else
+                {
+                    var buyer = playerUsers.First(x => x.Id != seller.Id);
+                    context.Transactions.Add(new Transaction
+                    {
+                        Id = Guid.NewGuid(),
+                        BuyerId = buyer.Id,
+                        SellerId = seller.Id,
+                        ItemId = inv.ItemId,
+                        Price = price,
+                        Timestamp = now.AddHours(-rand.Next(1, 48))
+                    });
 
-        context.MarketListings.AddRange(listing1, listing2);
+                    buyer.Currency -= price;
+                    seller.Currency += price;
+                }
+            }
+        }
+    }
 
-        context.MarketInventoryItems.AddRange(
-            new MarketInventoryItem { Id = Guid.NewGuid(), UserId = seller1.Id, ItemId = seller1Item },
-            new MarketInventoryItem { Id = Guid.NewGuid(), UserId = seller2.Id, ItemId = seller2Item });
+    private static void SeedChat(AppDbContext context, List<User> users, DateTime now)
+    {
+        var player1 = users.First(x => x.Username == "Player1");
+        var player2 = users.First(x => x.Username == "Player2");
+        var player3 = users.First(x => x.Username == "Player3");
+        var mod = users.First(x => x.Username == "GameModerator");
 
-        context.Transactions.Add(new Transaction
-        {
-            Id = Guid.NewGuid(),
-            BuyerId = buyer.Id,
-            SellerId = seller2.Id,
-            ItemId = seller2Item,
-            Price = 220,
-            Timestamp = now.AddHours(-1)
-        });
+        context.ChatMessages.AddRange(
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = player1.Id, Text = "Welcome to global market chat.", CreatedAt = now.AddMinutes(-140) },
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = player2.Id, Text = "Selling rare sword on market.", CreatedAt = now.AddMinutes(-120) },
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = mod.Id, Text = "Keep chat clean and respectful.", CreatedAt = now.AddMinutes(-110) },
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = player3.Id, Text = "Looking for chestplate with fire element.", CreatedAt = now.AddMinutes(-100) },
 
-        buyer.Currency -= 220;
-        seller2.Currency += 220;
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = player1.Id, RecipientId = player2.Id, Text = "Hi, still selling that sword?", CreatedAt = now.AddMinutes(-90) },
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = player2.Id, RecipientId = player1.Id, Text = "Yes, listed on buy page.", CreatedAt = now.AddMinutes(-88) },
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = player1.Id, RecipientId = player2.Id, Text = "Great, I may buy it today.", CreatedAt = now.AddMinutes(-82) },
+
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = player1.Id, RecipientId = player3.Id, Text = "Need gauntlets or helmet?", CreatedAt = now.AddMinutes(-70) },
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = player3.Id, RecipientId = player1.Id, Text = "Mostly chestplate.", CreatedAt = now.AddMinutes(-65) },
+
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = player2.Id, RecipientId = mod.Id, Text = "Can you verify a suspicious listing?", CreatedAt = now.AddMinutes(-50) },
+            new ChatMessage { Id = Guid.NewGuid(), SenderId = mod.Id, RecipientId = player2.Id, Text = "Checked, it is legitimate.", CreatedAt = now.AddMinutes(-45) }
+        );
     }
 
     private static void SeedRuns(AppDbContext context, List<User> users, List<EnemyClassProfile> classProfiles, DateTime now)

@@ -22,4 +22,5 @@ public class User
     public bool IsBlocked { get; set; }
     public DateTime? BlockedUntil { get; set; }
     public string? BlockReason { get; set; }
+    public string? ProfileImagePath { get; set; }
 }

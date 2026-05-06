@@ -291,11 +291,11 @@ public class EquipmentService : IEquipmentService
     {
         switch (type)
         {
-            case ArmorType.Head: eq.HeadId = itemId; break;
-            case ArmorType.Body: eq.BodyId = itemId; break;
-            case ArmorType.Gloves: eq.GlovesId = itemId; break;
-            case ArmorType.Legs: eq.LegsId = itemId; break;
-            case ArmorType.Boots: eq.BootsId = itemId; break;
+            case ArmorType.Helmet: eq.HeadId = itemId; break;
+            case ArmorType.Chestplate: eq.BodyId = itemId; break;
+            case ArmorType.Gauntlets: eq.GlovesId = itemId; break;
+            case ArmorType.Greaves: eq.LegsId = itemId; break;
+            case ArmorType.Sabatons: eq.BootsId = itemId; break;
             default: throw new InvalidOperationException();
         }
     }

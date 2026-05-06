@@ -62,6 +62,8 @@ namespace LootNet_API
             builder.Services.AddScoped<IGenerationAdminService, GenerationAdminService>();
             builder.Services.AddScoped<IEnemyGenerationAdminService, EnemyGenerationAdminService>();
             builder.Services.AddScoped<IEquipmentService, EquipmentService>();
+            builder.Services.AddScoped<IProfileService, ProfileService>();
+            builder.Services.AddScoped<IChatService, ChatService>();
             builder.Services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
             builder.Services.AddSignalR();
             builder.Services.AddEndpointsApiExplorer();

@@ -2,9 +2,9 @@
 
 public enum ArmorType
 {
-    Head,
-    Body,
-    Gloves,
-    Legs,
-    Boots
+    Helmet,
+    Chestplate,
+    Gauntlets,
+    Greaves,
+    Sabatons
 }
