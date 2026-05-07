@@ -279,7 +279,8 @@ public static class DbSeeder
             new User { Id = Guid.NewGuid(), Username = "Player2", PasswordHash = BCrypt.Net.BCrypt.HashPassword("player2"), Role = UserRole.Player, ProfileId = defaultProfileId, Currency = 1300, Equipment = new Equipment() },
             new User { Id = Guid.NewGuid(), Username = "Player3", PasswordHash = BCrypt.Net.BCrypt.HashPassword("player3"), Role = UserRole.Player, ProfileId = defaultProfileId, Currency = 900, Equipment = new Equipment(), IsBlocked = true, BlockReason = "seed ban", BlockedUntil = DateTime.UtcNow.AddDays(2) },
             new User { Id = Guid.NewGuid(), Username = "GameModerator", PasswordHash = BCrypt.Net.BCrypt.HashPassword("moderator"), Role = UserRole.GameModerator, ProfileId = defaultProfileId, Currency = 2000, Equipment = new Equipment() },
-            new User { Id = Guid.NewGuid(), Username = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"), Role = UserRole.Admin, ProfileId = defaultProfileId, Currency = 5000, Equipment = new Equipment() }
+            new User { Id = Guid.NewGuid(), Username = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"), Role = UserRole.Admin, ProfileId = defaultProfileId, Currency = 5000, Equipment = new Equipment() },
+            new User { Id = Guid.NewGuid(), Username = "SuperAdmin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("superadmin"), Role = UserRole.SuperAdmin, ProfileId = defaultProfileId, Currency = 10000, Equipment = new Equipment() }
         ];
     }
 
