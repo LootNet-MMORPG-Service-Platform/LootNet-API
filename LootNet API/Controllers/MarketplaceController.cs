@@ -1,10 +1,13 @@
-﻿using LootNet_API.DTO;
+﻿using LootNet_API.Data;
+using LootNet_API.DTO;
 using LootNet_API.Enums;
 using LootNet_API.Extensions;
 using LootNet_API.Models;
+using LootNet_API.Services;
 using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 [ApiController]
 [Route("api/market")]
@@ -13,12 +16,54 @@ public class MarketplaceController : Controller
 {
     private readonly IMarketplaceService _marketplaceService;
     private readonly IInventoryService _inventoryService;
+    private readonly IProfileService _profileService;
+    private readonly AppDbContext _context;
 
     public MarketplaceController(
-        IMarketplaceService marketplaceService, IInventoryService inventoryService)
+        IMarketplaceService marketplaceService, IInventoryService inventoryService,
+        IProfileService profileService, AppDbContext context)
     {
         _marketplaceService = marketplaceService;
         _inventoryService = inventoryService;
+        _profileService = profileService;
+        _context = context;
+    }
+
+    [HttpPost("me/pfp")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(5_000_000)]
+    public async Task<IActionResult> UploadProfilePicture([FromForm] UploadProfilePictureRequest request)
+    {
+        try
+        {
+            var userId = User.GetUserId();
+            var profileImagePath = await _profileService.UploadProfilePictureAsync(userId, request.File);
+
+            return Ok(new { profileImagePath });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("me")]
+    public IActionResult GetProfile()
+    {
+        var userId = User.GetUserId();
+
+        var user = _context.Users.FirstOrDefault(x => x.Id == userId);
+
+        if (user == null)
+            return NotFound();
+
+        return Ok(new UserProfileDTO
+        {
+            Username = user.Username,
+            Currency = user.Currency,
+            Role = user.Role,
+            ProfileImagePath = user.ProfileImagePath
+        });
     }
 
     [HttpPost("listing/weapons")]

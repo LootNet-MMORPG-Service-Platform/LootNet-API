@@ -56,13 +56,15 @@ public class MobileController : ControllerBase
     }
 
     [HttpPost("me/pfp")]
+    [Consumes("multipart/form-data")]
     [RequestSizeLimit(5_000_000)]
-    public async Task<IActionResult> UploadProfilePicture([FromForm] IFormFile file)
+    public async Task<IActionResult> UploadProfilePicture([FromForm] UploadProfilePictureRequest request)
     {
         try
         {
             var userId = User.GetUserId();
-            var profileImagePath = await _profileService.UploadProfilePictureAsync(userId, file);
+            var profileImagePath = await _profileService.UploadProfilePictureAsync(userId, request.File);
+
             return Ok(new { profileImagePath });
         }
         catch (InvalidOperationException ex)
