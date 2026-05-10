@@ -6,6 +6,7 @@ using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 
 namespace LootNet_API
 {
@@ -97,26 +98,33 @@ namespace LootNet_API
                 });
             });
 
-            var rawConnectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
             string connectionString;
+            var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
 
-            if (!string.IsNullOrEmpty(rawConnectionString) && rawConnectionString.StartsWith("postgres://"))
+            if (string.IsNullOrEmpty(databaseUrl))
             {
-                var uri = new Uri(rawConnectionString);
-                var userInfo = uri.UserInfo.Split(':');
-                connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
+                connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
             }
             else
             {
-                connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+                var databaseUri = new Uri(databaseUrl);
+                var userInfo = databaseUri.UserInfo.Split(':');
+
+                connectionString = new Npgsql.NpgsqlConnectionStringBuilder
+                {
+                    Host = databaseUri.Host,
+                    Port = databaseUri.Port,
+                    Username = userInfo[0],
+                    Password = userInfo[1],
+                    Database = databaseUri.AbsolutePath.TrimStart('/'),
+                    SslMode = SslMode.Require,
+                    TrustServerCertificate = true
+                }.ToString();
             }
 
-            builder.Services.AddDbContext<AppDbContext>(
-                options => options.UseNpgsql(connectionString),
-                contextLifetime: ServiceLifetime.Scoped,
-                optionsLifetime: ServiceLifetime.Singleton);
-            builder.Services.AddDbContextFactory<AppDbContext>(options =>
-                options.UseNpgsql(connectionString));
+            builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+            builder.Services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
+
 
             var app = builder.Build();
 
