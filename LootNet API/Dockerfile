@@ -14,4 +14,4 @@ ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 EXPOSE 8080
 
 COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "LootNet API.dll"]
+ENTRYPOINT ["sh", "-c", "dotnet 'LootNet API.dll' --seed && dotnet 'LootNet API.dll'"]
