@@ -109,6 +109,7 @@ namespace LootNet_API
             {
                 var databaseUri = new Uri(databaseUrl);
                 var userInfo = databaseUri.UserInfo.Split(':');
+                int port = databaseUri.Port == -1 ? 5432 : databaseUri.Port;
 
                 connectionString = new Npgsql.NpgsqlConnectionStringBuilder
                 {
