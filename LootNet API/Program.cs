@@ -96,12 +96,16 @@ namespace LootNet_API
                     }
                 });
             });
+
+            var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
+                      ?? builder.Configuration.GetConnectionString("DefaultConnection");
+
             builder.Services.AddDbContext<AppDbContext>(
-                options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
+                options => options.UseNpgsql(connectionString),
                 contextLifetime: ServiceLifetime.Scoped,
                 optionsLifetime: ServiceLifetime.Singleton);
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
-                options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+                options.UseNpgsql(connectionString));
 
             var app = builder.Build();
 
