@@ -1,6 +1,6 @@
 ﻿using LootNet_API.DTO.GameRun;
 using LootNet_API.Extensions;
-using LootNet_API.Services;
+using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,9 +10,9 @@ namespace LootNet_API.Controllers;
 [Route("api/run")]
 public class GameRunController : ControllerBase
 {
-    private readonly GameRunService _service;
+    private readonly IGameRunService _service;
 
-    public GameRunController(GameRunService service)
+    public GameRunController(IGameRunService service)
     {
         _service = service;
     }

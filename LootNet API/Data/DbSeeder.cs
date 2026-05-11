@@ -390,7 +390,23 @@ public static class DbSeeder
                 }
                 else
                 {
-                    var buyer = playerUsers.First(x => x.Id != seller.Id);
+                    var affordableBuyers = playerUsers
+                        .Where(x => x.Id != seller.Id && x.Currency >= price)
+                        .ToList();
+
+                    if (affordableBuyers.Count == 0)
+                    {
+                        listing.IsSold = false;
+                        context.MarketInventoryItems.Add(new MarketInventoryItem
+                        {
+                            Id = Guid.NewGuid(),
+                            UserId = seller.Id,
+                            ItemId = inv.ItemId
+                        });
+                        continue;
+                    }
+
+                    var buyer = affordableBuyers[rand.Next(affordableBuyers.Count)];
                     context.Transactions.Add(new Transaction
                     {
                         Id = Guid.NewGuid(),

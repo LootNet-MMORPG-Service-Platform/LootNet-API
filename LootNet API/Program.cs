@@ -59,12 +59,17 @@ namespace LootNet_API
             builder.Services.AddScoped<IItemGenerationService, ItemGenerationService>();
             builder.Services.AddScoped<IItemNameGenerator, ItemNameGenerator>();
             builder.Services.AddScoped<IInventoryService, InventoryService>();
+            builder.Services.AddScoped<IEnemyGenerationService, EnemyGenerationService>();
             builder.Services.AddScoped<IAdminService, AdminService>();
             builder.Services.AddScoped<IGenerationAdminService, GenerationAdminService>();
             builder.Services.AddScoped<IEnemyGenerationAdminService, EnemyGenerationAdminService>();
             builder.Services.AddScoped<IEquipmentService, EquipmentService>();
             builder.Services.AddScoped<IProfileService, ProfileService>();
             builder.Services.AddScoped<IChatService, ChatService>();
+            builder.Services.AddScoped<CombatHandsService>();
+            builder.Services.AddScoped<DamageCalculator>();
+            builder.Services.AddScoped<BattleService>();
+            builder.Services.AddScoped<IGameRunService, GameRunService>();
             builder.Services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
             builder.Services.AddSignalR();
             builder.Services.AddEndpointsApiExplorer();
@@ -164,3 +169,4 @@ namespace LootNet_API
         }
     }
 }
+

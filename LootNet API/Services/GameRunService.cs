@@ -6,7 +6,7 @@ using LootNet_API.Services;
 using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
-public class GameRunService
+public class GameRunService : IGameRunService
 {
     private const int PlayerStartHp = 100;
     private readonly IDbContextFactory<AppDbContext> _dbFactory;
