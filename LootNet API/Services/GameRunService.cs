@@ -40,6 +40,25 @@ public class GameRunService : IGameRunService
         return run == null ? null : MapRun(run);
     }
 
+    public async Task<BattleDTO?> GetCurrentBattleAsync(Guid userId)
+    {
+        await using var db = _dbFactory.CreateDbContext();
+        var run = await db.Runs
+            .AsNoTracking()
+            .Include(x => x.Battles)
+                .ThenInclude(x => x.Enemies)
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.Status == RunStatus.InBattle);
+
+        if (run == null)
+            return null;
+
+        var battle = run.Battles.OrderByDescending(x => x.Id).FirstOrDefault();
+        if (battle == null)
+            return null;
+
+        return MapBattle(run, battle);
+    }
+
     public async Task<RunDTO> StartRunAsync(Guid userId, StartRunDTO dto)
     {
         await using var db = _dbFactory.CreateDbContext();

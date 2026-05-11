@@ -24,6 +24,13 @@ public class GameRunController : ControllerBase
         return Ok(run);
     }
 
+    [HttpGet("battle/current")]
+    public async Task<IActionResult> CurrentBattle()
+    {
+        var battle = await _service.GetCurrentBattleAsync(User.GetUserId());
+        return Ok(battle);
+    }
+
     [HttpPost("start")]
     public async Task<IActionResult> Start(StartRunDTO dto)
     {
