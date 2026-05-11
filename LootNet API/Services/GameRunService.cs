@@ -29,6 +29,17 @@ public class GameRunService : IGameRunService
         _realtimeNotifier = realtimeNotifier;
     }
 
+    public async Task<RunDTO?> GetActiveRunAsync(Guid userId)
+    {
+        await using var db = _dbFactory.CreateDbContext();
+        var run = await db.Runs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.UserId == userId &&
+                (x.Status == RunStatus.Active || x.Status == RunStatus.InBattle));
+
+        return run == null ? null : MapRun(run);
+    }
+
     public async Task<RunDTO> StartRunAsync(Guid userId, StartRunDTO dto)
     {
         await using var db = _dbFactory.CreateDbContext();
@@ -38,7 +49,7 @@ public class GameRunService : IGameRunService
                 (x.Status == RunStatus.Active || x.Status == RunStatus.InBattle));
 
         if (existing != null)
-            throw new InvalidOperationException("Run already in progress");
+            return MapRun(existing);
 
         await _inventory.MoveToRunAsync(userId, dto.ItemIds);
 

@@ -46,7 +46,7 @@ public static class DbSeeder
 
         SeedMarketplace(context, users, now);
         SeedChat(context, users, now);
-        SeedRuns(context, users, classProfiles, now);
+        SeedRuns(context, users, now);
         SeedAdminArtifacts(context, users, now);
 
         context.SaveChanges();
@@ -449,52 +449,8 @@ public static class DbSeeder
         );
     }
 
-    private static void SeedRuns(AppDbContext context, List<User> users, List<EnemyClassProfile> classProfiles, DateTime now)
+    private static void SeedRuns(AppDbContext context, List<User> users, DateTime now)
     {
-        var runner = users[0];
-
-        var run = new Run
-        {
-            Id = Guid.NewGuid(),
-            UserId = runner.Id,
-            Status = RunStatus.InBattle,
-            BattleIndex = 2,
-            PlayerCurrentHp = 84,
-            PlayerMaxHp = 100,
-            PlayerPosition = 2,
-            StartedAt = now.AddMinutes(-40),
-            Battles = new List<Battle>()
-        };
-
-        var battle = new Battle
-        {
-            Id = Guid.NewGuid(),
-            RunId = run.Id,
-            Enemies = new List<BattleEnemy>
-            {
-                new()
-                {
-                    Id = Guid.NewGuid(),
-                    Class = classProfiles.First().Class,
-                    Position = 1,
-                    CurrentHp = 90,
-                    MaxHp = 100,
-                    Equipment = new Equipment()
-                },
-                new()
-                {
-                    Id = Guid.NewGuid(),
-                    Class = classProfiles.Skip(1).First().Class,
-                    Position = 3,
-                    CurrentHp = 70,
-                    MaxHp = 100,
-                    Equipment = new Equipment()
-                }
-            }
-        };
-
-        run.Battles.Add(battle);
-
         var finishedRun = new Run
         {
             Id = Guid.NewGuid(),
@@ -508,7 +464,7 @@ public static class DbSeeder
             Battles = new List<Battle>()
         };
 
-        context.Runs.AddRange(run, finishedRun);
+        context.Runs.Add(finishedRun);
     }
 
     private static void SeedAdminArtifacts(AppDbContext context, List<User> users, DateTime now)

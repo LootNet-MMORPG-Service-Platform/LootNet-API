@@ -17,35 +17,80 @@ public class GameRunController : ControllerBase
         _service = service;
     }
 
+    [HttpGet("active")]
+    public async Task<IActionResult> Active()
+    {
+        var run = await _service.GetActiveRunAsync(User.GetUserId());
+        return Ok(run);
+    }
+
     [HttpPost("start")]
     public async Task<IActionResult> Start(StartRunDTO dto)
     {
-        return Ok(await _service.StartRunAsync(User.GetUserId(), dto));
+        if (dto.ItemIds == null || dto.ItemIds.Count == 0)
+            return BadRequest("At least one item is required to start run.");
+
+        try
+        {
+            return Ok(await _service.StartRunAsync(User.GetUserId(), dto));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
     }
 
     [HttpPost("go-further")]
     public async Task<IActionResult> GoFurther()
     {
-        return Ok(await _service.GoFurtherAsync(User.GetUserId()));
+        try
+        {
+            return Ok(await _service.GoFurtherAsync(User.GetUserId()));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
     }
 
     [HttpPost("turn")]
     public async Task<IActionResult> FinishTurn(FinishTurnDTO dto)
     {
-        return Ok(await _service.FinishTurnAsync(User.GetUserId(), dto));
+        try
+        {
+            return Ok(await _service.FinishTurnAsync(User.GetUserId(), dto));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
     }
 
     [HttpPost("end")]
     public async Task<IActionResult> End()
     {
-        await _service.EndRunAsync(User.GetUserId());
-        return Ok();
+        try
+        {
+            await _service.EndRunAsync(User.GetUserId());
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
     }
 
     [HttpPost("force-return/{userId}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> ForceReturn(Guid userId)
     {
-        return Ok(await _service.ForceReturnAsync(userId));
+        try
+        {
+            return Ok(await _service.ForceReturnAsync(userId));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
     }
 }
