@@ -107,9 +107,11 @@ public class BattleService
                 break;
 
             case ActionType.ChangeEquipment:
-                _hands.ChangePlayerHands(run, action.LeftWeapon, action.RightWeapon);
+                var leftWeapon = await ResolveWeaponForHandsAsync(run.UserId, action.LeftWeapon);
+                var rightWeapon = await ResolveWeaponForHandsAsync(run.UserId, action.RightWeapon);
+                _hands.ChangePlayerHands(run, leftWeapon, rightWeapon);
                 run.IsPlayerDisorganized = true;
-                result.Log.Add("Player changed equipment");
+                result.Log.Add($"Player changed equipment: left={leftWeapon?.Name ?? "none"}, right={rightWeapon?.Name ?? "none"}");
                 break;
 
             case ActionType.ChangePosition:
@@ -294,6 +296,18 @@ public class BattleService
 
     private static int Clamp(int value, int min, int max)
         => Math.Max(min, Math.Min(max, value));
+
+    private async Task<Weapon?> ResolveWeaponForHandsAsync(Guid userId, Weapon? requested)
+    {
+        if (requested?.Id == null || requested.Id == Guid.Empty)
+            return null;
+
+        var fromEquipment = await _equipment.GetWeaponModelAsync(requested.Id);
+        if (fromEquipment != null)
+            return fromEquipment;
+
+        return requested;
+    }
 
     private static BattleResultDTO EndRun(Run run, RunStatus status, BattleResultDTO result)
     {

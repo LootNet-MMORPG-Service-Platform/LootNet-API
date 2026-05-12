@@ -53,7 +53,7 @@ public class GameRunService : IGameRunService
         if (run == null)
             return null;
 
-        var battle = run.Battles.OrderByDescending(x => x.Id).FirstOrDefault();
+        var battle = run.Battles.LastOrDefault();
         if (battle == null)
             return null;
 

@@ -244,6 +244,7 @@ public class EquipmentService : IEquipmentService
             Id = item.Id,
             Name = item.Name,
             Category = item.Category,
+            WeaponType = item.WeaponType,
             Cut = item.Cut,
             Blunt = item.Blunt,
             Elements = item.Elements.Select(e => new ItemElementDTO
