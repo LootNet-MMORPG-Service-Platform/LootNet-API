@@ -2,6 +2,7 @@
 using LootNet_API.Enums;
 using LootNet_API.Models.GameRun;
 using LootNet_API.Models.GameRun.EnemyGeneration;
+using LootNet_API.Models.Items;
 using LootNet_API.Models.Items.Generation;
 using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -43,6 +44,7 @@ public class EnemyGenerationService : IEnemyGenerationService
             throw new InvalidOperationException("No valid scenario");
 
         var enemies = new List<BattleEnemy>();
+        var generatedItems = new List<Item>();
 
         foreach (var slot in scenario.Slots)
         {
@@ -55,7 +57,7 @@ public class EnemyGenerationService : IEnemyGenerationService
             if (!CanBePlaced(profile.Class, slot.Position))
                 continue;
 
-            var enemy = await CreateEnemy(profile, slot.Position);
+            var enemy = await CreateEnemy(profile, slot.Position, generatedItems);
 
             enemies.Add(enemy);
 
@@ -63,12 +65,26 @@ public class EnemyGenerationService : IEnemyGenerationService
                 break;
         }
 
+        if (generatedItems.Count > 0)
+        {
+            var weapons = generatedItems.OfType<Weapon>().ToList();
+            var armors = generatedItems.OfType<Armor>().ToList();
+
+            if (weapons.Count > 0)
+                _context.Weapons.AddRange(weapons);
+            if (armors.Count > 0)
+                _context.Armors.AddRange(armors);
+
+            await _context.SaveChangesAsync();
+        }
+
         return enemies;
     }
 
-    private async Task<BattleEnemy> CreateEnemy(EnemyClassProfile profile, int position)
+    private async Task<BattleEnemy> CreateEnemy(EnemyClassProfile profile, int position, List<Item> generatedItems)
     {
         var items = await _itemGenerationService.GenerateForEnemyAsync(profile.GenerationProfileId);
+        generatedItems.AddRange(items);
 
         var equipment = new Equipment();
 
