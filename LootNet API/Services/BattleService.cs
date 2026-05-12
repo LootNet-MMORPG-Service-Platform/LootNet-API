@@ -30,6 +30,7 @@ public class BattleService
     public async Task<Battle> StartBattleAsync(Run run, Battle battle)
     {
         run.PlayerPosition = PlayerStartPosition;
+        await EnsureRunHandsFromEquipmentAsync(run);
 
         var playerWeapons = await LoadPlayerWeaponsAsync(run);
         _hands.InitializePlayerHands(run, playerWeapons);
@@ -45,31 +46,55 @@ public class BattleService
         return battle;
     }
 
+    private async Task EnsureRunHandsFromEquipmentAsync(Run run)
+    {
+        if (run.LeftHandItemId.HasValue || run.RightHandItemId.HasValue)
+            return;
+
+        var eq = await _equipment.GetEquipmentModelAsync(run.UserId);
+        if (eq == null)
+            return;
+
+        run.LeftHandItemId = eq.WeaponSlot1Id;
+        run.RightHandItemId = eq.WeaponSlot2Id ?? eq.WeaponSlot1Id;
+    }
+
     public async Task<BattleResultDTO> HandlePlayerTurnAsync(Run run,Battle battle,TurnActionDTO action)
     {
         var result = new BattleResultDTO { Log = new List<string>() };
 
         if (run.PlayerCurrentHp <= 0)
-            return EndRun(run, RunStatus.Lost, result);
+        {
+            var ended = EndRun(run, RunStatus.Lost, result);
+            FillBattleSnapshot(ended, run, battle);
+            return ended;
+        }
 
         if (run.PlayerSkipNextTurn)
         {
             run.PlayerSkipNextTurn = false;
             await EnemyTurnAsync(run, battle, result);
-            return await CheckBattleEndAsync(run, battle, result);
+            var skippedResult = await CheckBattleEndAsync(run, battle, result);
+            FillBattleSnapshot(skippedResult, run, battle);
+            return skippedResult;
         }
 
         await HandleActionAsync(run, battle, action, result);
 
         if (result.RunFinished)
+        {
+            FillBattleSnapshot(result, run, battle);
             return result;
+        }
 
         if (!battle.Enemies.Any())
             return AdvanceBattle(run, result);
 
         await EnemyTurnAsync(run, battle, result);
 
-        return await CheckBattleEndAsync(run, battle, result);
+        var finalResult = await CheckBattleEndAsync(run, battle, result);
+        FillBattleSnapshot(finalResult, run, battle);
+        return finalResult;
     }
 
     private async Task HandleActionAsync(Run run,Battle battle,
@@ -104,12 +129,18 @@ public class BattleService
     {
         var target = battle.Enemies.FirstOrDefault(e => e.Position == action.TargetPosition);
         if (target == null)
+        {
+            result.Log.Add($"Player attack missed: no enemy at position {action.TargetPosition}");
             return;
+        }
 
         var isRanged = await PlayerIsUsingRangedAsync(run);
 
         if (!isRanged && !IsAdjacent(run.PlayerPosition, target.Position))
+        {
+            result.Log.Add($"Player attack failed: target at position {target.Position} is out of melee range from {run.PlayerPosition}");
             return;
+        }
 
         var playerEquipment = await LoadPlayerEquipmentAsync(run.UserId);
 
@@ -117,12 +148,12 @@ public class BattleService
 
         target.CurrentHp -= damage;
         result.DamageDealt += damage;
-        result.Log.Add($"Player hit enemy {target.Id} for {damage}");
+        result.Log.Add($"Player hit {target.Class} enemy {target.Id} at pos {target.Position} for {damage}");
 
         if (target.CurrentHp <= 0)
         {
             battle.Enemies.Remove(target);
-            result.Log.Add($"Enemy {target.Id} defeated");
+            result.Log.Add($"{target.Class} enemy {target.Id} defeated");
         }
 
         run.IsPlayerDisorganized = false;
@@ -147,7 +178,10 @@ public class BattleService
             var weapon = GetActiveWeapon(enemy, weapons);
 
             if (weapon == null)
+            {
+                result.Log.Add($"{enemy.Class} enemy {enemy.Id} cannot act: no weapon equipped");
                 continue;
+            }
 
             var isRanged = weapon.WeaponType.IsRanged();
 
@@ -155,7 +189,7 @@ public class BattleService
             {
                 enemy.Position = Math.Max(1, enemy.Position - 1);
                 enemy.IsDisorganized = true;
-                result.Log.Add($"Enemy {enemy.Id} moved to position {enemy.Position}");
+                result.Log.Add($"{enemy.Class} enemy {enemy.Id} moved to position {enemy.Position}");
                 continue;
             }
 
@@ -163,7 +197,7 @@ public class BattleService
 
             run.PlayerCurrentHp -= damage;
             result.EnemyDamage += damage;
-            result.Log.Add($"Enemy {enemy.Id} hit player for {damage}");
+            result.Log.Add($"{enemy.Class} enemy {enemy.Id} hit player for {damage}");
 
             enemy.IsDisorganized = false;
         }
@@ -270,5 +304,27 @@ public class BattleService
             return AdvanceBattle(run, result);
 
         return result;
+    }
+
+    private static void FillBattleSnapshot(BattleResultDTO result, Run run, Battle battle)
+    {
+        result.RunStatus = run.Status;
+        result.PlayerCurrentHp = run.PlayerCurrentHp;
+        result.PlayerMaxHp = run.PlayerMaxHp;
+        result.PlayerPosition = run.PlayerPosition;
+        result.BattleId = battle.Id;
+        result.Enemies = battle.Enemies
+            .Select(e => new BattleEnemyDTO
+            {
+                Id = e.Id,
+                Class = e.Class,
+                Position = e.Position,
+                CurrentHp = e.CurrentHp,
+                MaxHp = e.MaxHp,
+                LeftHandItemId = e.LeftHandItemId,
+                RightHandItemId = e.RightHandItemId
+            })
+            .OrderBy(e => e.Position)
+            .ToList();
     }
 }

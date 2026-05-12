@@ -142,6 +142,8 @@ public class EquipmentService : IEquipmentService
 
     public void ApplyEnemyEquipment(Equipment equipment, List<Item> items)
     {
+        var weaponSlot = 1;
+
         foreach (var item in items)
         {
             if (item.Category == ItemCategory.Armor)
@@ -158,7 +160,8 @@ public class EquipmentService : IEquipmentService
                 var weapon = item as Weapon;
                 if (weapon == null) continue;
 
-                ApplyWeapon(equipment, weapon, 1);
+                ApplyWeapon(equipment, weapon, weaponSlot);
+                weaponSlot = Math.Min(4, weaponSlot + (weapon.WeaponType.IsTwoHanded() ? 2 : 1));
             }
         }
     }
@@ -178,7 +181,7 @@ public class EquipmentService : IEquipmentService
     {
         if (slot == 4)
         {
-            ClearIfTwoHand(eq.WeaponSlot3Id, eq);
+            ClearIfTwoHand(eq.WeaponSlot3Id, eq).GetAwaiter().GetResult();
             SetWeaponSlot(eq, itemId, 3);
             SetWeaponSlot(eq, itemId, 4);
             return;
@@ -186,7 +189,7 @@ public class EquipmentService : IEquipmentService
 
         if (slot == 1)
         {
-            ClearIfTwoHand(eq.WeaponSlot1Id, eq);
+            ClearIfTwoHand(eq.WeaponSlot1Id, eq).GetAwaiter().GetResult();
             SetWeaponSlot(eq, itemId, 1);
             SetWeaponSlot(eq, itemId, 2);
             return;
@@ -194,13 +197,13 @@ public class EquipmentService : IEquipmentService
 
         if (slot == 2)
         {
-            ClearIfTwoHand(eq.WeaponSlot2Id, eq);
+            ClearIfTwoHand(eq.WeaponSlot2Id, eq).GetAwaiter().GetResult();
             SetWeaponSlot(eq, itemId, 2);
             SetWeaponSlot(eq, itemId, 3);
             return;
         }
 
-        ClearIfTwoHand(eq.WeaponSlot3Id, eq);
+        ClearIfTwoHand(eq.WeaponSlot3Id, eq).GetAwaiter().GetResult();
         SetWeaponSlot(eq, itemId, 3);
         SetWeaponSlot(eq, itemId, 4);
     }

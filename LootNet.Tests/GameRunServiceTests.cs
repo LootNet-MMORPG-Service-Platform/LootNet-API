@@ -180,7 +180,7 @@ public class GameRunServiceTests
     }
 
     [Fact]
-    public async Task StartRun_ShouldThrow_WhenRunAlreadyActive()
+    public async Task StartRun_ShouldReturnExisting_WhenRunAlreadyActive()
     {
         var (service, db, _) = CreateService();
         var (userId, _) = await SeedUserAsync(db);
@@ -198,12 +198,15 @@ public class GameRunServiceTests
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.StartRunAsync(userId, new StartRunDTO { ItemIds = new List<Guid>() }));
+        var result = await service.StartRunAsync(userId, new StartRunDTO { ItemIds = new List<Guid>() });
+        var runs = await db.Runs.AsNoTracking().Where(x => x.UserId == userId).ToListAsync();
+        Assert.Single(runs);
+        Assert.Equal(runs[0].Id, result.Id);
+        Assert.Equal(RunStatus.Active, result.Status);
     }
 
     [Fact]
-    public async Task StartRun_ShouldThrow_WhenRunInBattle()
+    public async Task StartRun_ShouldReturnExisting_WhenRunInBattle()
     {
         var (service, db, _) = CreateService();
         var (userId, _) = await SeedUserAsync(db);
@@ -221,8 +224,11 @@ public class GameRunServiceTests
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.StartRunAsync(userId, new StartRunDTO { ItemIds = new List<Guid>() }));
+        var result = await service.StartRunAsync(userId, new StartRunDTO { ItemIds = new List<Guid>() });
+        var runs = await db.Runs.AsNoTracking().Where(x => x.UserId == userId).ToListAsync();
+        Assert.Single(runs);
+        Assert.Equal(runs[0].Id, result.Id);
+        Assert.Equal(RunStatus.InBattle, result.Status);
     }
 
     [Fact]
@@ -1040,7 +1046,7 @@ public class GameRunServiceTests
     }
 
     [Fact]
-    public async Task FullFlow_CannotStartSecondRunWhileActive()
+    public async Task FullFlow_SecondStartReturnsSameRunWhileActive()
     {
         var (service, db, _) = CreateService();
         var (userId, weaponId) = await SeedUserAsync(db);
@@ -1051,8 +1057,11 @@ public class GameRunServiceTests
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.StartRunAsync(userId, new StartRunDTO { ItemIds = new List<Guid> { weaponId } }));
+        var firstRun = await db.Runs.AsNoTracking().FirstAsync(x => x.UserId == userId);
+        var secondStart = await service.StartRunAsync(userId, new StartRunDTO { ItemIds = new List<Guid> { weaponId } });
+        var runs = await db.Runs.AsNoTracking().Where(x => x.UserId == userId).ToListAsync();
+        Assert.Single(runs);
+        Assert.Equal(firstRun.Id, secondStart.Id);
     }
 
     [Fact]

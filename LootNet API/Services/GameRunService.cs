@@ -216,6 +216,7 @@ public class GameRunService : IGameRunService
         Enemies = battle.Enemies.Select(e => new BattleEnemyDTO
         {
             Id = e.Id,
+            Class = e.Class,
             Position = e.Position,
             CurrentHp = e.CurrentHp,
             MaxHp = e.MaxHp,
