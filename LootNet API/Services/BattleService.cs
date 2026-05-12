@@ -109,6 +109,7 @@ public class BattleService
             case ActionType.ChangeEquipment:
                 var leftWeapon = await ResolveWeaponForHandsAsync(run.UserId, action.LeftWeapon);
                 var rightWeapon = await ResolveWeaponForHandsAsync(run.UserId, action.RightWeapon);
+                ValidateHandSelection(leftWeapon, rightWeapon);
                 _hands.ChangePlayerHands(run, leftWeapon, rightWeapon);
                 run.IsPlayerDisorganized = true;
                 result.Log.Add($"Player changed equipment: left={leftWeapon?.Name ?? "none"}, right={rightWeapon?.Name ?? "none"}");
@@ -296,6 +297,21 @@ public class BattleService
 
     private static int Clamp(int value, int min, int max)
         => Math.Max(min, Math.Min(max, value));
+
+    private static void ValidateHandSelection(Weapon? left, Weapon? right)
+    {
+        if (left == null && right == null)
+            return;
+
+        if (left != null && right != null && left.Id == right.Id && !left.WeaponType.IsTwoHanded())
+            throw new InvalidOperationException("One-handed weapon cannot be equipped in both hands.");
+
+        if (left != null && left.WeaponType.IsTwoHanded() && right != null && right.Id != left.Id)
+            throw new InvalidOperationException("Two-handed weapon must occupy both hands.");
+
+        if (right != null && right.WeaponType.IsTwoHanded() && left != null && left.Id != right.Id)
+            throw new InvalidOperationException("Two-handed weapon must occupy both hands.");
+    }
 
     private async Task<Weapon?> ResolveWeaponForHandsAsync(Guid userId, Weapon? requested)
     {

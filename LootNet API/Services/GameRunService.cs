@@ -134,8 +134,6 @@ public class GameRunService : IGameRunService
         {
             var rewardIds = result.RewardItemIds
                 .Distinct()
-                .OrderBy(_ => Guid.NewGuid())
-                .Take(3)
                 .ToList();
 
             foreach (var id in rewardIds)

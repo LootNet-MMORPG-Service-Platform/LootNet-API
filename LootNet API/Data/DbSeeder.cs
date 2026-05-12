@@ -148,6 +148,8 @@ public static class DbSeeder
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Shortsword, Weight = 30 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Bow, Weight = 20 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Crossbow, Weight = 20 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Polearm, Weight = 10 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.TwoHandSword, Weight = 8 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Helmet, Weight = 20 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Chestplate, Weight = 25 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Gauntlets, Weight = 15 },
@@ -161,6 +163,8 @@ public static class DbSeeder
             CreateWeaponRule(profile.Id, WeaponType.Shortsword, false, 1, 3, 1, 3),
             CreateWeaponRule(profile.Id, WeaponType.Bow, false, 1, 3, 1, 2),
             CreateWeaponRule(profile.Id, WeaponType.Crossbow, false, 1, 3, 1, 2),
+            CreateWeaponRule(profile.Id, WeaponType.Polearm, false, 1, 3, 1, 3),
+            CreateWeaponRule(profile.Id, WeaponType.TwoHandSword, false, 1, 3, 1, 3),
             CreateArmorRule(profile.Id, ArmorType.Helmet, false, 1, 3, 1, 3),
             CreateArmorRule(profile.Id, ArmorType.Chestplate, false, 1, 3, 1, 3),
             CreateArmorRule(profile.Id, ArmorType.Gauntlets, false, 1, 3, 1, 3),
@@ -245,8 +249,8 @@ public static class DbSeeder
     {
         return
         [
-            new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Front Tank", Class = EnemyClass.Tank, AllowedColumns = [1], GenerationProfileId = eliteProfileId, Weight = 20 },
-            new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Halberd Guard", Class = EnemyClass.Polearm, AllowedColumns = [1,2], GenerationProfileId = eliteProfileId, Weight = 18 },
+            new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Front Tank", Class = EnemyClass.Tank, AllowedColumns = [1], GenerationProfileId = weakProfileId, Weight = 20 },
+            new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Halberd Guard", Class = EnemyClass.Polearm, AllowedColumns = [1,2], GenerationProfileId = weakProfileId, Weight = 18 },
             new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Skirmisher", Class = EnemyClass.Skirmisher, AllowedColumns = [1,2], GenerationProfileId = weakProfileId, Weight = 20 },
             new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Crossbowman", Class = EnemyClass.Crossbow, AllowedColumns = [2,3], GenerationProfileId = weakProfileId, Weight = 16 },
             new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Archer", Class = EnemyClass.Archer, AllowedColumns = [3,4], GenerationProfileId = weakProfileId, Weight = 14 },

@@ -17,6 +17,7 @@ public static class WeaponTypeExtensions
         return type switch
         {
             WeaponType.TwoHandSword => true,
+            WeaponType.Polearm => true,
             WeaponType.Bow => true,
             WeaponType.Crossbow => true,
             _ => false
