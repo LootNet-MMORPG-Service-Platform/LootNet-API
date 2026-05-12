@@ -205,6 +205,7 @@ public static class DbSeeder
         var skirmisher = classProfiles.First(x => x.Class == EnemyClass.Skirmisher).Id;
         var crossbow = classProfiles.First(x => x.Class == EnemyClass.Crossbow).Id;
         var archer = classProfiles.First(x => x.Class == EnemyClass.Archer).Id;
+        var twoHand = classProfiles.First(x => x.Class == EnemyClass.TwoHand).Id;
 
         return
         [
@@ -267,21 +268,152 @@ public static class DbSeeder
                         ]
                     }
                 ]
+            },
+            new StageProfile
+            {
+                Id = Guid.NewGuid(),
+                Name = "Stage 3",
+                StageIndex = 2,
+                Weight = 100,
+                Falloff = 0.18,
+                Threshold = 1,
+                Scenarios =
+                [
+                    new StageScenario
+                    {
+                        Id = Guid.NewGuid(),
+                        EnemyCount = 4,
+                        Weight = 70,
+                        Slots =
+                        [
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 1, ClassProfileId = polearm, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 2, ClassProfileId = skirmisher, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 3, ClassProfileId = crossbow, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 4, ClassProfileId = archer, Weight = 100 }
+                        ]
+                    },
+                    new StageScenario
+                    {
+                        Id = Guid.NewGuid(),
+                        EnemyCount = 3,
+                        Weight = 30,
+                        Slots =
+                        [
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 1, ClassProfileId = tank, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 2, ClassProfileId = crossbow, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 4, ClassProfileId = archer, Weight = 100 }
+                        ]
+                    }
+                ]
+            },
+            new StageProfile
+            {
+                Id = Guid.NewGuid(),
+                Name = "Stage 4",
+                StageIndex = 3,
+                Weight = 100,
+                Falloff = 0.15,
+                Threshold = 1,
+                Scenarios =
+                [
+                    new StageScenario
+                    {
+                        Id = Guid.NewGuid(),
+                        EnemyCount = 4,
+                        Weight = 100,
+                        Slots =
+                        [
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 1, ClassProfileId = tank, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 2, ClassProfileId = polearm, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 3, ClassProfileId = crossbow, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 4, ClassProfileId = archer, Weight = 100 }
+                        ]
+                    }
+                ]
+            },
+            new StageProfile
+            {
+                Id = Guid.NewGuid(),
+                Name = "Stage 5",
+                StageIndex = 4,
+                Weight = 100,
+                Falloff = 0.12,
+                Threshold = 1,
+                Scenarios =
+                [
+                    new StageScenario
+                    {
+                        Id = Guid.NewGuid(),
+                        EnemyCount = 4,
+                        Weight = 100,
+                        Slots =
+                        [
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 1, ClassProfileId = twoHand, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 2, ClassProfileId = polearm, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 3, ClassProfileId = crossbow, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 4, ClassProfileId = archer, Weight = 100 }
+                        ]
+                    }
+                ]
+            },
+            new StageProfile
+            {
+                Id = Guid.NewGuid(),
+                Name = "Stage 6",
+                StageIndex = 5,
+                Weight = 100,
+                Falloff = 0.10,
+                Threshold = 1,
+                Scenarios =
+                [
+                    new StageScenario
+                    {
+                        Id = Guid.NewGuid(),
+                        EnemyCount = 4,
+                        Weight = 100,
+                        Slots =
+                        [
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 1, ClassProfileId = twoHand, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 2, ClassProfileId = polearm, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 3, ClassProfileId = crossbow, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 4, ClassProfileId = archer, Weight = 100 }
+                        ]
+                    }
+                ]
             }
         ];
     }
 
     private static List<User> BuildUsers(Guid defaultProfileId)
     {
-        return
+        var users = new List<User>();
+        for (var i = 1; i <= 20; i++)
+        {
+            users.Add(new User
+            {
+                Id = Guid.NewGuid(),
+                Username = $"Player{i}",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword($"player{i}"),
+                Role = UserRole.Player,
+                ProfileId = defaultProfileId,
+                Currency = 900 + (i * 70),
+                Equipment = new Equipment(),
+                LastDailyReward = i == 1 ? DateTime.UtcNow.AddDays(-1) : null
+            });
+        }
+
+        users[2].IsBlocked = true;
+        users[2].BlockReason = "seed ban";
+        users[2].BlockedUntil = DateTime.UtcNow.AddDays(2);
+
+        users.AddRange(
         [
-            new User { Id = Guid.NewGuid(), Username = "Player1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("player1"), Role = UserRole.Player, ProfileId = defaultProfileId, Currency = 1500, Equipment = new Equipment(), LastDailyReward = DateTime.UtcNow.AddDays(-1) },
-            new User { Id = Guid.NewGuid(), Username = "Player2", PasswordHash = BCrypt.Net.BCrypt.HashPassword("player2"), Role = UserRole.Player, ProfileId = defaultProfileId, Currency = 1300, Equipment = new Equipment() },
-            new User { Id = Guid.NewGuid(), Username = "Player3", PasswordHash = BCrypt.Net.BCrypt.HashPassword("player3"), Role = UserRole.Player, ProfileId = defaultProfileId, Currency = 900, Equipment = new Equipment(), IsBlocked = true, BlockReason = "seed ban", BlockedUntil = DateTime.UtcNow.AddDays(2) },
-            new User { Id = Guid.NewGuid(), Username = "GameModerator", PasswordHash = BCrypt.Net.BCrypt.HashPassword("moderator"), Role = UserRole.GameModerator, ProfileId = defaultProfileId, Currency = 2000, Equipment = new Equipment() },
-            new User { Id = Guid.NewGuid(), Username = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"), Role = UserRole.Admin, ProfileId = defaultProfileId, Currency = 5000, Equipment = new Equipment() },
-            new User { Id = Guid.NewGuid(), Username = "SuperAdmin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("superadmin"), Role = UserRole.SuperAdmin, ProfileId = defaultProfileId, Currency = 10000, Equipment = new Equipment() }
-        ];
+            new User { Id = Guid.NewGuid(), Username = "GameModerator", PasswordHash = BCrypt.Net.BCrypt.HashPassword("moderator"), Role = UserRole.GameModerator, ProfileId = defaultProfileId, Currency = 3000, Equipment = new Equipment() },
+            new User { Id = Guid.NewGuid(), Username = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"), Role = UserRole.Admin, ProfileId = defaultProfileId, Currency = 6000, Equipment = new Equipment() },
+            new User { Id = Guid.NewGuid(), Username = "SuperAdmin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("superadmin"), Role = UserRole.SuperAdmin, ProfileId = defaultProfileId, Currency = 12000, Equipment = new Equipment() }
+        ]);
+
+        return users;
     }
 
     private static void SeedItemsAndInventories(AppDbContext context, IItemGenerationService generator, List<User> users)

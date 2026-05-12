@@ -637,7 +637,8 @@ public class GameRunServiceTests
         var run = await db.Runs.AsNoTracking().FirstAsync(x => x.UserId == userId);
         Assert.Equal(RunStatus.Lost, run.Status);
         Assert.False(await db.RunInventoryItems.AnyAsync(x => x.UserId == userId));
-        Assert.False(await db.Weapons.AnyAsync(x => x.Id == weaponId));
+        Assert.True(await db.Weapons.AnyAsync(x => x.Id == weaponId));
+        Assert.False(await db.RunInventoryItems.AnyAsync(x => x.UserId == userId));
 
         var eq = await db.Equipments.AsNoTracking().FirstAsync(x => x.UserId == userId);
         Assert.Null(eq.WeaponSlot1Id);
@@ -969,7 +970,8 @@ public class GameRunServiceTests
         Assert.Equal(RunStatus.Lost, lostRun.Status);
 
         Assert.False(await db.RunInventoryItems.AnyAsync(x => x.UserId == userId));
-        Assert.False(await db.Weapons.AnyAsync(x => x.Id == weaponId));
+        Assert.True(await db.Weapons.AnyAsync(x => x.Id == weaponId));
+        Assert.False(await db.RunInventoryItems.AnyAsync(x => x.UserId == userId));
 
         var eq = await db.Equipments.AsNoTracking().FirstAsync(x => x.UserId == userId);
         Assert.Null(eq.WeaponSlot1Id);

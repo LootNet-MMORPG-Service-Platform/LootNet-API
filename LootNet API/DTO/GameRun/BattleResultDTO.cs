@@ -1,4 +1,5 @@
 using LootNet_API.Enums;
+using LootNet_API.DTO.Items;
 
 namespace LootNet_API.DTO.GameRun;
 
@@ -16,4 +17,8 @@ public class BattleResultDTO
     public int PlayerPosition { get; set; }
     public Guid BattleId { get; set; }
     public List<BattleEnemyDTO> Enemies { get; set; } = new();
+    public bool PlayerDefeated { get; set; }
+    public string? Message { get; set; }
+    public List<ItemRewardDTO> RewardItems { get; set; } = new();
+    public List<Guid> RewardItemIds { get; set; } = new();
 }

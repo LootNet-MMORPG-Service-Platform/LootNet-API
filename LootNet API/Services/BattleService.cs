@@ -152,6 +152,21 @@ public class BattleService
 
         if (target.CurrentHp <= 0)
         {
+            var lootIds = new[]
+            {
+                target.Equipment?.WeaponSlot1Id,
+                target.Equipment?.WeaponSlot2Id,
+                target.Equipment?.WeaponSlot3Id,
+                target.Equipment?.WeaponSlot4Id,
+                target.Equipment?.HeadId,
+                target.Equipment?.BodyId,
+                target.Equipment?.GlovesId,
+                target.Equipment?.LegsId,
+                target.Equipment?.BootsId,
+            }
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value);
+            result.RewardItemIds.AddRange(lootIds);
             battle.Enemies.Remove(target);
             result.Log.Add($"{target.Class} enemy {target.Id} defeated");
         }
@@ -284,6 +299,9 @@ public class BattleService
     {
         run.Status = status;
         result.RunFinished = true;
+        result.PlayerDefeated = status == RunStatus.Lost;
+        if (status == RunStatus.Lost)
+            result.Message = "You lost the battle. Run inventory and equipped items were lost.";
         return result;
     }
 
@@ -291,7 +309,9 @@ public class BattleService
     {
         run.Status = RunStatus.Active;
         run.BattleIndex++;
+        run.PlayerCurrentHp = run.PlayerMaxHp;
         result.RunFinished = true;
+        result.Message = "Battle won. You recovered to full HP.";
         return result;
     }
 

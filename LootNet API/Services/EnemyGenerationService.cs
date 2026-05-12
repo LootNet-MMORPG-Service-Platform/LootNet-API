@@ -118,10 +118,20 @@ public class EnemyGenerationService : IEnemyGenerationService
 
     private async Task<StageProfile?> GetStage(int index)
     {
-        return await _context.Set<StageProfile>()
+        var exact = await _context.Set<StageProfile>()
             .Include(x => x.Scenarios)
                 .ThenInclude(x => x.Slots)
             .FirstOrDefaultAsync(x => x.StageIndex == index);
+
+        if (exact != null)
+            return exact;
+
+        return await _context.Set<StageProfile>()
+            .Include(x => x.Scenarios)
+                .ThenInclude(x => x.Slots)
+            .Where(x => x.StageIndex <= index)
+            .OrderByDescending(x => x.StageIndex)
+            .FirstOrDefaultAsync();
     }
 
     private T? PickWeighted<T>(List<T> items) where T : class

@@ -106,6 +106,13 @@ public class MobileController : ControllerBase
                 break;
         }
 
+        _context.InventoryItems.Add(new InventoryItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            ItemId = item.Id
+        });
+
         user.LastDailyReward = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 

@@ -69,15 +69,7 @@ public class InventoryService : IInventoryService
         equipment.LegsId = equipment.BootsId = equipment.WeaponSlot1Id =
         equipment.WeaponSlot2Id = equipment.WeaponSlot3Id = equipment.WeaponSlot4Id = null;
 
-        var allItemIds = runItemIds.Concat(equippedItemIds).Distinct().ToList();
-
         db.RunInventoryItems.RemoveRange(db.RunInventoryItems.Where(x => x.UserId == userId));
-
-        var weapons = await db.Weapons.Where(x => allItemIds.Contains(x.Id)).ToListAsync();
-        var armors = await db.Armors.Where(x => allItemIds.Contains(x.Id)).ToListAsync();
-
-        db.Weapons.RemoveRange(weapons);
-        db.Armors.RemoveRange(armors);
 
         await db.SaveChangesAsync();
         await NotifyAsync("inventory", "lose-run-items", userId);

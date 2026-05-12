@@ -1,5 +1,6 @@
 ﻿using LootNet_API.Data;
 using LootNet_API.DTO.GameRun;
+using LootNet_API.DTO.Items;
 using LootNet_API.Enums;
 using LootNet_API.Models.GameRun;
 using LootNet_API.Services;
@@ -128,6 +129,31 @@ public class GameRunService : IGameRunService
             ?? throw new InvalidOperationException("Battle not found");
 
         var result = await _battle.HandlePlayerTurnAsync(run, battle, dto.Action);
+
+        if (run.Status == RunStatus.Active && result.RunFinished && result.RewardItemIds.Count > 0)
+        {
+            var rewardIds = result.RewardItemIds
+                .Distinct()
+                .OrderBy(_ => Guid.NewGuid())
+                .Take(3)
+                .ToList();
+
+            foreach (var id in rewardIds)
+                await _inventory.AddToRunInventoryAsync(userId, id);
+
+            var weapons = await db.Weapons
+                .Where(x => rewardIds.Contains(x.Id))
+                .Select(x => new ItemRewardDTO { Id = x.Id, Name = x.Name, Category = x.Category })
+                .ToListAsync();
+            var armors = await db.Armors
+                .Where(x => rewardIds.Contains(x.Id))
+                .Select(x => new ItemRewardDTO { Id = x.Id, Name = x.Name, Category = x.Category })
+                .ToListAsync();
+
+            result.RewardItems = weapons.Concat(armors).ToList();
+            if (result.RewardItems.Count > 0)
+                result.Message = $"Battle won. Looted {result.RewardItems.Count} item(s). HP restored to max.";
+        }
 
         if (run.Status == RunStatus.Lost)
             await _inventory.LoseRunItemsAsync(userId);
