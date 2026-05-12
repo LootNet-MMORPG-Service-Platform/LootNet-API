@@ -37,27 +37,24 @@ public class ItemGenerationService : IItemGenerationService
         var typeWeights = profile.TypeWeights;
         if (!typeWeights.Any()) throw new InvalidOperationException("Profile has no TypeWeights");
 
-        var itemCategory = SampleCategory(typeWeights);
+        var selectedType = SampleTypeWeight(typeWeights);
+        var rule = ResolveRuleForType(profile.Rules, selectedType)
+                   ?? await GetFallbackRuleAsync(selectedType.Category);
 
-        if (itemCategory == ItemCategory.Weapon)
-        {
-            var rule = profile.Rules.FirstOrDefault(r => r.Category == ItemCategory.Weapon)
-                       ?? await GetFallbackRuleAsync(ItemCategory.Weapon);
-
-            return GenerateWeapon(rule);
-        }
-        else
-        {
-            var rule = profile.Rules.FirstOrDefault(r => r.Category == ItemCategory.Armor)
-                       ?? await GetFallbackRuleAsync(ItemCategory.Armor);
-
-            return GenerateArmor(rule);
-        }
+        return selectedType.Category == ItemCategory.Weapon
+            ? GenerateWeapon(rule)
+            : GenerateArmor(rule);
     }
 
     public async Task<List<Item>> GenerateForEnemyAsync(Guid generationProfileId)
     {
         var profile = await _context.GenerationProfiles
+            .Include(p => p.Rules)
+                .ThenInclude(r => r.Parameters)
+                    .ThenInclude(p => p.Segments)
+            .Include(p => p.Rules)
+                .ThenInclude(r => r.Elements)
+                    .ThenInclude(e => e.Segments)
             .Include(p => p.TypeWeights)
             .FirstOrDefaultAsync(p => p.Id == generationProfileId);
 
@@ -68,49 +65,30 @@ public class ItemGenerationService : IItemGenerationService
             throw new InvalidOperationException("Profile has no TypeWeights");
 
         var result = new List<Item>();
-        int remainingSlots = 4;
 
-        var orderedTypes = profile.TypeWeights
+        var weaponWeights = profile.TypeWeights
+            .Where(x => x.Category == ItemCategory.Weapon)
+            .ToList();
+        if (weaponWeights.Count > 0)
+        {
+            var selectedWeaponWeight = SampleTypeWeight(weaponWeights);
+            var weaponRule = ResolveRuleForType(profile.Rules, selectedWeaponWeight)
+                             ?? await GetFallbackRuleAsync(ItemCategory.Weapon);
+            result.Add(GenerateWeapon(weaponRule));
+        }
+
+        var armorWeights = profile.TypeWeights
+            .Where(x => x.Category == ItemCategory.Armor && x.ArmorType.HasValue)
             .OrderByDescending(x => x.Weight)
+            .GroupBy(x => x.ArmorType!.Value)
+            .Select(x => x.First())
             .ToList();
 
-        foreach (var typeWeight in orderedTypes)
+        foreach (var armorWeight in armorWeights)
         {
-            if (remainingSlots <= 0)
-                break;
-
-            var category = SampleCategory(new List<ItemTypeWeight> { typeWeight });
-
-            if (category == ItemCategory.Weapon)
-            {
-                var rule = await GetEnemyRuleAsync(generationProfileId, ItemCategory.Weapon);
-
-                var weapon = GenerateWeapon(rule);
-
-                var isTwoHanded = weapon.WeaponType.IsTwoHanded();
-
-                if (isTwoHanded)
-                {
-                    if (remainingSlots < 2)
-                        continue;
-
-                    result.Add(weapon);
-                    remainingSlots -= 2;
-                }
-                else
-                {
-                    result.Add(weapon);
-                    remainingSlots -= 1;
-                }
-            }
-            else
-            {
-                var rule = await GetEnemyRuleAsync(generationProfileId, ItemCategory.Armor);
-
-                var armor = GenerateArmor(rule);
-
-                result.Add(armor);
-            }
+            var armorRule = ResolveRuleForType(profile.Rules, armorWeight)
+                            ?? await GetFallbackRuleAsync(ItemCategory.Armor);
+            result.Add(GenerateArmor(armorRule));
         }
 
         return result;
@@ -129,6 +107,21 @@ public class ItemGenerationService : IItemGenerationService
         }
 
         return typeWeights.Last().Category;
+    }
+
+    private ItemTypeWeight SampleTypeWeight(ICollection<ItemTypeWeight> typeWeights)
+    {
+        double total = typeWeights.Sum(t => t.Weight);
+        double roll = _rand.NextDouble() * total;
+        double cumulative = 0;
+
+        foreach (var t in typeWeights)
+        {
+            cumulative += t.Weight;
+            if (roll <= cumulative) return t;
+        }
+
+        return typeWeights.Last();
     }
 
     private async Task<ItemGenerationRule> GetFallbackRuleAsync(ItemCategory category)
@@ -247,7 +240,29 @@ public class ItemGenerationService : IItemGenerationService
         var last = elem.Segments.Last();
         return _rand.NextDouble() * (last.Max - last.Min) + last.Min;
     }
-    private async Task<ItemGenerationRule> GetEnemyRuleAsync(Guid generationProfileId, ItemCategory category)
+    private ItemGenerationRule? ResolveRuleForType(IEnumerable<ItemGenerationRule> rules, ItemTypeWeight typeWeight)
+    {
+        var filtered = rules.Where(r => r.Category == typeWeight.Category);
+
+        if (typeWeight.Category == ItemCategory.Weapon && typeWeight.WeaponType.HasValue)
+        {
+            var exactWeapon = filtered.FirstOrDefault(r => !r.IsFallback && r.WeaponType == typeWeight.WeaponType);
+            if (exactWeapon != null) return exactWeapon;
+        }
+
+        if (typeWeight.Category == ItemCategory.Armor && typeWeight.ArmorType.HasValue)
+        {
+            var exactArmor = filtered.FirstOrDefault(r => !r.IsFallback && r.ArmorType == typeWeight.ArmorType);
+            if (exactArmor != null) return exactArmor;
+        }
+
+        var generic = filtered.FirstOrDefault(r => !r.IsFallback);
+        if (generic != null) return generic;
+
+        return filtered.FirstOrDefault(r => r.IsFallback);
+    }
+
+    private async Task<ItemGenerationRule> GetEnemyRuleAsync(Guid generationProfileId, ItemTypeWeight typeWeight)
     {
         var profile = await _context.GenerationProfiles
             .Include(p => p.Rules)
@@ -261,11 +276,10 @@ public class ItemGenerationService : IItemGenerationService
         if (profile == null)
             throw new InvalidOperationException("Generation profile not found");
 
-        var rule = profile.Rules
-            .FirstOrDefault(r => r.Category == category);
+        var rule = ResolveRuleForType(profile.Rules, typeWeight);
 
         if (rule == null)
-            throw new InvalidOperationException("No rule for category in generation profile");
+            throw new InvalidOperationException("No matching generation rule in profile");
 
         return rule;
     }

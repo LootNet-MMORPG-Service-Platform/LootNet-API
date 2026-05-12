@@ -27,6 +27,7 @@ public class InventoryService : IInventoryService
             db.RunInventoryItems.Add(new RunInventoryItem { Id = Guid.NewGuid(), UserId = i.UserId, ItemId = i.ItemId });
 
         db.InventoryItems.RemoveRange(items);
+
         await db.SaveChangesAsync();
         await NotifyAsync("inventory", "move-to-run", userId);
     }

@@ -16,12 +16,13 @@ public static class DbSeeder
         var now = DateTime.UtcNow;
 
         var defaultProfile = BuildDefaultGenerationProfile();
+        var weakEnemyProfile = BuildWeakEnemyGenerationProfile();
         var eliteProfile = BuildEliteGenerationProfile();
 
-        context.GenerationProfiles.AddRange(defaultProfile, eliteProfile);
+        context.GenerationProfiles.AddRange(defaultProfile, weakEnemyProfile, eliteProfile);
         context.SaveChanges();
 
-        var classProfiles = BuildEnemyClassProfiles(defaultProfile.Id, eliteProfile.Id);
+        var classProfiles = BuildEnemyClassProfiles(weakEnemyProfile.Id, eliteProfile.Id);
         context.EnemyClassProfiles.AddRange(classProfiles);
 
         var stages = BuildStageProfiles(classProfiles);
@@ -62,9 +63,12 @@ public static class DbSeeder
 
         profile.TypeWeights.AddRange(
         [
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.TwoHandSword, Weight = 18 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Sword, Weight = 45 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Shortsword, Weight = 25 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Bow, Weight = 15 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Crossbow, Weight = 10 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Polearm, Weight = 12 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Chestplate, Weight = 30 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Helmet, Weight = 20 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Greaves, Weight = 20 },
@@ -74,9 +78,12 @@ public static class DbSeeder
 
         profile.Rules.AddRange(
         [
-            CreateWeaponRule(profile.Id, WeaponType.Sword, false, 10, 26, 4, 16),
-            CreateWeaponRule(profile.Id, WeaponType.Shortsword, false, 12, 28, 2, 14),
-            CreateWeaponRule(profile.Id, WeaponType.Bow, false, 8, 18, 1, 8),
+            CreateWeaponRule(profile.Id, WeaponType.Sword, false, 12, 24, 5, 14),
+            CreateWeaponRule(profile.Id, WeaponType.Shortsword, false, 10, 22, 3, 12),
+            CreateWeaponRule(profile.Id, WeaponType.Bow, false, 11, 21, 2, 9),
+            CreateWeaponRule(profile.Id, WeaponType.Crossbow, false, 13, 24, 3, 10),
+            CreateWeaponRule(profile.Id, WeaponType.Polearm, false, 14, 26, 4, 13),
+            CreateWeaponRule(profile.Id, WeaponType.TwoHandSword, false, 16, 30, 6, 16),
             CreateWeaponRule(profile.Id, WeaponType.Sword, true, 3, 8, 1, 5),
 
             CreateArmorRule(profile.Id, ArmorType.Helmet, false, 5, 14, 2, 8),
@@ -102,16 +109,65 @@ public static class DbSeeder
         [
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.TwoHandSword, Weight = 40 },
             new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Polearm, Weight = 35 },
-            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Chestplate, Weight = 25 }
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Crossbow, Weight = 15 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Helmet, Weight = 16 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Chestplate, Weight = 25 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Gauntlets, Weight = 14 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Greaves, Weight = 15 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Sabatons, Weight = 12 }
         ]);
 
         profile.Rules.AddRange(
         [
             CreateWeaponRule(profile.Id, WeaponType.TwoHandSword, false, 18, 38, 8, 22),
             CreateWeaponRule(profile.Id, WeaponType.Polearm, false, 16, 34, 7, 20),
+            CreateWeaponRule(profile.Id, WeaponType.Crossbow, false, 14, 30, 5, 14),
             CreateWeaponRule(profile.Id, WeaponType.TwoHandSword, true, 8, 16, 3, 10),
+            CreateArmorRule(profile.Id, ArmorType.Helmet, false, 10, 20, 4, 12),
             CreateArmorRule(profile.Id, ArmorType.Chestplate, false, 14, 28, 6, 16),
+            CreateArmorRule(profile.Id, ArmorType.Gauntlets, false, 9, 18, 4, 11),
+            CreateArmorRule(profile.Id, ArmorType.Greaves, false, 10, 20, 4, 12),
+            CreateArmorRule(profile.Id, ArmorType.Sabatons, false, 8, 16, 3, 10),
             CreateArmorRule(profile.Id, ArmorType.Chestplate, true, 7, 14, 3, 8)
+        ]);
+
+        return profile;
+    }
+
+    private static GenerationProfile BuildWeakEnemyGenerationProfile()
+    {
+        var profile = new GenerationProfile
+        {
+            Id = Guid.NewGuid(),
+            Name = "WeakEnemy"
+        };
+
+        profile.TypeWeights.AddRange(
+        [
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Sword, Weight = 30 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Shortsword, Weight = 30 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Bow, Weight = 20 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Weapon, WeaponType = WeaponType.Crossbow, Weight = 20 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Helmet, Weight = 20 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Chestplate, Weight = 25 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Gauntlets, Weight = 15 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Greaves, Weight = 20 },
+            new ItemTypeWeight { Id = Guid.NewGuid(), ProfileId = profile.Id, Category = ItemCategory.Armor, ArmorType = ArmorType.Sabatons, Weight = 20 }
+        ]);
+
+        profile.Rules.AddRange(
+        [
+            CreateWeaponRule(profile.Id, WeaponType.Sword, false, 1, 3, 1, 3),
+            CreateWeaponRule(profile.Id, WeaponType.Shortsword, false, 1, 3, 1, 3),
+            CreateWeaponRule(profile.Id, WeaponType.Bow, false, 1, 3, 1, 2),
+            CreateWeaponRule(profile.Id, WeaponType.Crossbow, false, 1, 3, 1, 2),
+            CreateArmorRule(profile.Id, ArmorType.Helmet, false, 1, 3, 1, 3),
+            CreateArmorRule(profile.Id, ArmorType.Chestplate, false, 1, 3, 1, 3),
+            CreateArmorRule(profile.Id, ArmorType.Gauntlets, false, 1, 3, 1, 3),
+            CreateArmorRule(profile.Id, ArmorType.Greaves, false, 1, 3, 1, 3),
+            CreateArmorRule(profile.Id, ArmorType.Sabatons, false, 1, 3, 1, 3),
+            CreateWeaponRule(profile.Id, WeaponType.Sword, true, 1, 2, 1, 2),
+            CreateArmorRule(profile.Id, ArmorType.Chestplate, true, 1, 2, 1, 2)
         ]);
 
         return profile;
@@ -185,15 +241,15 @@ public static class DbSeeder
         return rule;
     }
 
-    private static List<EnemyClassProfile> BuildEnemyClassProfiles(Guid defaultProfileId, Guid eliteProfileId)
+    private static List<EnemyClassProfile> BuildEnemyClassProfiles(Guid weakProfileId, Guid eliteProfileId)
     {
         return
         [
             new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Front Tank", Class = EnemyClass.Tank, AllowedColumns = [1], GenerationProfileId = eliteProfileId, Weight = 20 },
             new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Halberd Guard", Class = EnemyClass.Polearm, AllowedColumns = [1,2], GenerationProfileId = eliteProfileId, Weight = 18 },
-            new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Skirmisher", Class = EnemyClass.Skirmisher, AllowedColumns = [1,2], GenerationProfileId = defaultProfileId, Weight = 20 },
-            new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Crossbowman", Class = EnemyClass.Crossbow, AllowedColumns = [2,3], GenerationProfileId = defaultProfileId, Weight = 16 },
-            new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Archer", Class = EnemyClass.Archer, AllowedColumns = [3,4], GenerationProfileId = defaultProfileId, Weight = 14 },
+            new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Skirmisher", Class = EnemyClass.Skirmisher, AllowedColumns = [1,2], GenerationProfileId = weakProfileId, Weight = 20 },
+            new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Crossbowman", Class = EnemyClass.Crossbow, AllowedColumns = [2,3], GenerationProfileId = weakProfileId, Weight = 16 },
+            new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Archer", Class = EnemyClass.Archer, AllowedColumns = [3,4], GenerationProfileId = weakProfileId, Weight = 14 },
             new EnemyClassProfile { Id = Guid.NewGuid(), Name = "Berserker", Class = EnemyClass.TwoHand, AllowedColumns = [1], GenerationProfileId = eliteProfileId, Weight = 12 }
         ];
     }
@@ -286,7 +342,7 @@ public static class DbSeeder
                         Weight = 70,
                         Slots =
                         [
-                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 1, ClassProfileId = polearm, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 1, ClassProfileId = skirmisher, Weight = 100 },
                             new ScenarioSlot { Id = Guid.NewGuid(), Position = 2, ClassProfileId = skirmisher, Weight = 100 },
                             new ScenarioSlot { Id = Guid.NewGuid(), Position = 3, ClassProfileId = crossbow, Weight = 100 },
                             new ScenarioSlot { Id = Guid.NewGuid(), Position = 4, ClassProfileId = archer, Weight = 100 }
@@ -419,33 +475,43 @@ public static class DbSeeder
     private static void SeedItemsAndInventories(AppDbContext context, IItemGenerationService generator, List<User> users)
     {
         var userItems = new Dictionary<Guid, List<Guid>>();
+        var guaranteedArmorTypes = new[] { ArmorType.Helmet, ArmorType.Chestplate, ArmorType.Gauntlets, ArmorType.Greaves, ArmorType.Sabatons };
+        var guaranteedWeaponTypes = new[] { WeaponType.Sword, WeaponType.Shortsword, WeaponType.Bow, WeaponType.Crossbow, WeaponType.Polearm, WeaponType.TwoHandSword };
 
         foreach (var user in users)
         {
             var itemIds = new List<Guid>();
+            var collectedArmor = new HashSet<ArmorType>();
+            var collectedWeapons = new HashSet<WeaponType>();
 
-            for (var i = 0; i < 8; i++)
+            void AddGeneratedItem(Item item)
             {
-                var item = generator.GenerateItemAsync(user.Id).Result;
-
-                if (item is Weapon w)
+                switch (item)
                 {
-                    context.Weapons.Add(w);
+                    case Weapon w:
+                        context.Weapons.Add(w);
+                        collectedWeapons.Add(w.WeaponType);
+                        break;
+                    case Armor a:
+                        context.Armors.Add(a);
+                        collectedArmor.Add(a.ArmorType);
+                        break;
                 }
-                else if (item is Armor a)
-                {
-                    context.Armors.Add(a);
-                }
 
-                context.InventoryItems.Add(new InventoryItem
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = user.Id,
-                    ItemId = item.Id
-                });
-
+                context.InventoryItems.Add(new InventoryItem { Id = Guid.NewGuid(), UserId = user.Id, ItemId = item.Id });
                 itemIds.Add(item.Id);
             }
+
+            var safety = 0;
+            while ((collectedArmor.Count < guaranteedArmorTypes.Length || collectedWeapons.Count < guaranteedWeaponTypes.Length) && safety < 260)
+            {
+                var item = generator.GenerateItemAsync(user.Id).Result;
+                AddGeneratedItem(item);
+                safety++;
+            }
+
+            for (var i = 0; i < 8; i++)
+                AddGeneratedItem(generator.GenerateItemAsync(user.Id).Result);
 
             userItems[user.Id] = itemIds;
         }

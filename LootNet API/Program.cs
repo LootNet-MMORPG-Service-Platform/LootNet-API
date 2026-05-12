@@ -129,7 +129,9 @@ namespace LootNet_API
             }
 
             builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
-            builder.Services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
+            builder.Services.AddDbContextFactory<AppDbContext>(
+                options => options.UseNpgsql(connectionString),
+                ServiceLifetime.Scoped);
 
 
             var app = builder.Build();

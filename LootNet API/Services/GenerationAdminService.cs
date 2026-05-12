@@ -4,8 +4,6 @@ using LootNet_API.DTO.Generation.Create;
 using LootNet_API.DTO.Generation.Response;
 using LootNet_API.DTO.Generation.Update;
 using LootNet_API.Enums;
-using LootNet_API.Models;
-using LootNet_API.Models.Items;
 using LootNet_API.Models.Items.Generation;
 using LootNet_API.Models.Logs;
 using LootNet_API.Services.Interfaces;
@@ -127,10 +125,9 @@ public class GenerationAdminService : IGenerationAdminService
         };
 
         _context.ItemGenerationRules.Add(rule);
-
         await _context.SaveChangesAsync();
-        await LogAsync("CREATE_RULE_FULL", rule.Id);
 
+        await LogAsync("CREATE_RULE_FULL", rule.Id);
         return rule.Id;
     }
 
@@ -140,7 +137,14 @@ public class GenerationAdminService : IGenerationAdminService
         {
             Id = Guid.NewGuid(),
             RuleId = ruleId,
-            Parameter = dto.Parameter
+            Parameter = dto.Parameter,
+            Segments = dto.Segments.Select(s => new DistributionSegment
+            {
+                Id = Guid.NewGuid(),
+                Min = s.Min,
+                Max = s.Max,
+                Weight = s.Weight
+            }).ToList()
         };
 
         _context.ItemParameterSettings.Add(p);
@@ -156,7 +160,14 @@ public class GenerationAdminService : IGenerationAdminService
         {
             Id = Guid.NewGuid(),
             RuleId = ruleId,
-            ElementType = dto.ElementType
+            ElementType = dto.ElementType,
+            Segments = dto.Segments.Select(s => new DistributionSegment
+            {
+                Id = Guid.NewGuid(),
+                Min = s.Min,
+                Max = s.Max,
+                Weight = s.Weight
+            }).ToList()
         };
 
         _context.ItemElementSettings.Add(e);
@@ -193,7 +204,11 @@ public class GenerationAdminService : IGenerationAdminService
 
     public async Task<List<GenerationProfileDTO>> GetProfilesAsync()
         => await _context.GenerationProfiles
-            .Select(x => new GenerationProfileDTO { Id = x.Id, Name = x.Name })
+            .Select(x => new GenerationProfileDTO
+            {
+                Id = x.Id,
+                Name = x.Name
+            })
             .ToListAsync();
 
     public async Task<GenerationProfileDetailsDTO> GetProfileDetailsAsync(Guid id)
@@ -202,32 +217,84 @@ public class GenerationAdminService : IGenerationAdminService
             .Select(x => new GenerationProfileDetailsDTO
             {
                 Id = x.Id,
-                Name = x.Name
+                Name = x.Name,
+                TypeWeights = x.TypeWeights.Select(w => new TypeWeightDTO
+                {
+                    Id = w.Id,
+                    Category = w.Category,
+                    WeaponType = w.WeaponType,
+                    ArmorType = w.ArmorType,
+                    Weight = w.Weight
+                }).ToList(),
+                Rules = x.Rules.Select(r => new RuleDTO
+                {
+                    Id = r.Id,
+                    Category = r.Category,
+                    WeaponType = r.WeaponType,
+                    ArmorType = r.ArmorType,
+                    IsFallback = r.IsFallback
+                }).ToList()
             })
             .FirstAsync();
 
     public async Task<List<RuleDTO>> GetRulesAsync(Guid profileId)
         => await _context.ItemGenerationRules
             .Where(x => x.ProfileId == profileId)
-            .Select(x => new RuleDTO { Id = x.Id })
+            .Select(x => new RuleDTO
+            {
+                Id = x.Id,
+                Category = x.Category,
+                WeaponType = x.WeaponType,
+                ArmorType = x.ArmorType,
+                IsFallback = x.IsFallback
+            })
             .ToListAsync();
 
     public async Task<List<ParameterDTO>> GetParametersAsync(Guid ruleId)
         => await _context.ItemParameterSettings
             .Where(x => x.RuleId == ruleId)
-            .Select(x => new ParameterDTO { Id = x.Id })
+            .Select(x => new ParameterDTO
+            {
+                Id = x.Id,
+                Parameter = x.Parameter,
+                Segments = x.Segments.Select(s => new SegmentDTO
+                {
+                    Id = s.Id,
+                    Min = s.Min,
+                    Max = s.Max,
+                    Weight = s.Weight
+                }).ToList()
+            })
             .ToListAsync();
 
     public async Task<List<ElementDTO>> GetElementsAsync(Guid ruleId)
         => await _context.ItemElementSettings
             .Where(x => x.RuleId == ruleId)
-            .Select(x => new ElementDTO { Id = x.Id })
+            .Select(x => new ElementDTO
+            {
+                Id = x.Id,
+                ElementType = x.ElementType,
+                Segments = x.Segments.Select(s => new SegmentDTO
+                {
+                    Id = s.Id,
+                    Min = s.Min,
+                    Max = s.Max,
+                    Weight = s.Weight
+                }).ToList()
+            })
             .ToListAsync();
 
     public async Task<List<TypeWeightDTO>> GetWeightsAsync(Guid profileId)
         => await _context.ItemTypeWeights
             .Where(x => x.ProfileId == profileId)
-            .Select(x => new TypeWeightDTO { Id = x.Id })
+            .Select(x => new TypeWeightDTO
+            {
+                Id = x.Id,
+                Category = x.Category,
+                WeaponType = x.WeaponType,
+                ArmorType = x.ArmorType,
+                Weight = x.Weight
+            })
             .ToListAsync();
 
     #endregion
