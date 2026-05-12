@@ -293,7 +293,7 @@ public static class DbSeeder
                         Weight = 40,
                         Slots =
                         [
-                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 1, ClassProfileId = polearm, Weight = 100 },
+                            new ScenarioSlot { Id = Guid.NewGuid(), Position = 1, ClassProfileId = skirmisher, Weight = 100 },
                             new ScenarioSlot { Id = Guid.NewGuid(), Position = 2, ClassProfileId = crossbow, Weight = 100 },
                             new ScenarioSlot { Id = Guid.NewGuid(), Position = 4, ClassProfileId = archer, Weight = 100 }
                         ]
@@ -521,11 +521,21 @@ public static class DbSeeder
         foreach (var user in users)
         {
             var equipment = context.Equipments.First(x => x.UserId == user.Id);
-            var ownedWeapon = context.Weapons.FirstOrDefault(x => userItems[user.Id].Contains(x.Id));
+            var ownedWeapons = context.Weapons
+                .Where(x => userItems[user.Id].Contains(x.Id))
+                .ToList();
             var ownedArmor = context.Armors.Where(x => userItems[user.Id].Contains(x.Id)).ToList();
 
-            if (ownedWeapon != null)
-                equipment.WeaponSlot1Id = ownedWeapon.Id;
+            var distinctWeapons = ownedWeapons
+                .GroupBy(x => x.WeaponType)
+                .Select(x => x.First())
+                .Take(4)
+                .ToList();
+
+            if (distinctWeapons.Count > 0) equipment.WeaponSlot1Id = distinctWeapons[0].Id;
+            if (distinctWeapons.Count > 1) equipment.WeaponSlot2Id = distinctWeapons[1].Id;
+            if (distinctWeapons.Count > 2) equipment.WeaponSlot3Id = distinctWeapons[2].Id;
+            if (distinctWeapons.Count > 3) equipment.WeaponSlot4Id = distinctWeapons[3].Id;
 
             foreach (var armor in ownedArmor)
             {

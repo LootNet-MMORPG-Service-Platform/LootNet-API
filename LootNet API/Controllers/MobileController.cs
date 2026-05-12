@@ -179,47 +179,59 @@ public class MobileController : ControllerBase
     [HttpPost("equip/weapon/{slot}/{itemId}")]
     public async Task<IActionResult> EquipWeapon(int slot, Guid itemId)
     {
-        var userId = User.GetUserId();
-
-        var run = await GetActiveRun(userId);
-
-        if (run != null)
+        try
         {
-            if (run.Status == RunStatus.InBattle)
-                return BadRequest("Cannot change equipment during battle");
+            var userId = User.GetUserId();
+            var run = await GetActiveRun(userId);
 
-            await _equipmentService.EquipWeaponFromRunAsync(userId, itemId, slot);
+            if (run != null)
+            {
+                if (run.Status == RunStatus.InBattle)
+                    return BadRequest("Cannot change equipment during battle");
+
+                await _equipmentService.EquipWeaponFromRunAsync(userId, itemId, slot);
+            }
+            else
+            {
+                await _equipmentService.EquipWeaponAsync(userId, itemId, slot);
+            }
+
+            await _realtimeNotifier.AppChangedAsync("equipment", "equip-weapon-mobile", userId, new { itemId, slot });
+            return Ok();
         }
-        else
+        catch (InvalidOperationException ex)
         {
-            await _equipmentService.EquipWeaponAsync(userId, itemId, slot);
+            return BadRequest(ex.Message);
         }
-        await _realtimeNotifier.AppChangedAsync("equipment", "equip-weapon-mobile", userId, new { itemId, slot });
-
-        return Ok();
     }
 
     [HttpPost("equip/armor/{itemId}")]
     public async Task<IActionResult> EquipArmor(Guid itemId)
     {
-        var userId = User.GetUserId();
-
-        var run = await GetActiveRun(userId);
-
-        if (run != null)
+        try
         {
-            if (run.Status == RunStatus.InBattle)
-                return BadRequest("Cannot change equipment during battle");
+            var userId = User.GetUserId();
+            var run = await GetActiveRun(userId);
 
-            await _equipmentService.EquipArmorFromRunAsync(userId, itemId);
+            if (run != null)
+            {
+                if (run.Status == RunStatus.InBattle)
+                    return BadRequest("Cannot change equipment during battle");
+
+                await _equipmentService.EquipArmorFromRunAsync(userId, itemId);
+            }
+            else
+            {
+                await _equipmentService.EquipArmorAsync(userId, itemId);
+            }
+
+            await _realtimeNotifier.AppChangedAsync("equipment", "equip-armor-mobile", userId, new { itemId });
+            return Ok();
         }
-        else
+        catch (InvalidOperationException ex)
         {
-            await _equipmentService.EquipArmorAsync(userId, itemId);
+            return BadRequest(ex.Message);
         }
-        await _realtimeNotifier.AppChangedAsync("equipment", "equip-armor-mobile", userId, new { itemId });
-
-        return Ok();
     }
 
     [HttpPost("unequip/{itemId}")]

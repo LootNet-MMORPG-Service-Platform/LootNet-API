@@ -54,7 +54,7 @@ public class EnemyGenerationService : IEnemyGenerationService
             if (profile == null)
                 continue;
 
-            if (!CanBePlaced(profile.Class, slot.Position))
+            if (!profile.AllowedColumns.Contains(slot.Position))
                 continue;
 
             var enemy = await CreateEnemy(profile, slot.Position, generatedItems);
@@ -63,6 +63,19 @@ public class EnemyGenerationService : IEnemyGenerationService
 
             if (enemies.Count >= 4)
                 break;
+        }
+
+        if (enemies.Count == 0)
+        {
+            var fallbackProfile = await _context.Set<EnemyClassProfile>()
+                .OrderByDescending(x => x.Weight)
+                .FirstOrDefaultAsync();
+
+            if (fallbackProfile != null)
+            {
+                var fallbackEnemy = await CreateEnemy(fallbackProfile, 1, generatedItems);
+                enemies.Add(fallbackEnemy);
+            }
         }
 
         if (generatedItems.Count > 0)
@@ -101,21 +114,6 @@ public class EnemyGenerationService : IEnemyGenerationService
         };
     }
 
-    private bool CanBePlaced(EnemyClass enemyClass, int position)
-    {
-        return enemyClass switch
-        {
-            EnemyClass.Tank => position == 1,
-            EnemyClass.Polearm => position is 1 or 2,
-            EnemyClass.Skirmisher => position is 1 or 2,
-            EnemyClass.Crossbow => position is 2 or 3,
-            EnemyClass.Archer => position is 3 or 4,
-            EnemyClass.TwoHand => position == 1,
-            EnemyClass.DualWield => position == 1,
-            _ => false
-        };
-    }
-
     private async Task<StageProfile?> GetStage(int index)
     {
         var exact = await _context.Set<StageProfile>()
@@ -126,12 +124,44 @@ public class EnemyGenerationService : IEnemyGenerationService
         if (exact != null)
             return exact;
 
-        return await _context.Set<StageProfile>()
+        var fallback = await _context.Set<StageProfile>()
             .Include(x => x.Scenarios)
                 .ThenInclude(x => x.Slots)
             .Where(x => x.StageIndex <= index)
             .OrderByDescending(x => x.StageIndex)
             .FirstOrDefaultAsync();
+
+        if (fallback == null)
+            return null;
+
+        var candidates = await _context.Set<StageProfile>()
+            .Include(x => x.Scenarios)
+                .ThenInclude(x => x.Slots)
+            .Where(x => x.StageIndex <= fallback.StageIndex && x.StageIndex >= Math.Max(0, fallback.StageIndex - fallback.Threshold))
+            .ToListAsync();
+
+        if (candidates.Count <= 1)
+            return fallback;
+
+        var weighted = new List<(StageProfile stage, double w)>();
+        foreach (var c in candidates)
+        {
+            var distance = fallback.StageIndex - c.StageIndex;
+            var decay = Math.Pow(1.0 - Math.Clamp(fallback.Falloff, 0.0, 0.95), distance);
+            weighted.Add((c, Math.Max(0.0001, c.Weight * decay)));
+        }
+
+        var total = weighted.Sum(x => x.w);
+        var roll = Random.Shared.NextDouble() * total;
+        var acc = 0.0;
+        foreach (var item in weighted.OrderByDescending(x => x.stage.StageIndex))
+        {
+            acc += item.w;
+            if (roll <= acc)
+                return item.stage;
+        }
+
+        return fallback;
     }
 
     private T? PickWeighted<T>(List<T> items) where T : class

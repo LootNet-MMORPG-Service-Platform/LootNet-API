@@ -34,9 +34,6 @@ public class GameRunController : ControllerBase
     [HttpPost("start")]
     public async Task<IActionResult> Start(StartRunDTO dto)
     {
-        if (dto.ItemIds == null || dto.ItemIds.Count == 0)
-            return BadRequest("At least one item is required to start run.");
-
         try
         {
             return Ok(await _service.StartRunAsync(User.GetUserId(), dto));

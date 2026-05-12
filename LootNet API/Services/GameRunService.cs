@@ -71,7 +71,7 @@ public class GameRunService : IGameRunService
         if (existing != null)
             return MapRun(existing);
 
-        await _inventory.MoveToRunAsync(userId, dto.ItemIds);
+        await _inventory.MoveToRunAsync(userId, dto.ItemIds ?? new List<Guid>());
 
         var run = new Run
         {
