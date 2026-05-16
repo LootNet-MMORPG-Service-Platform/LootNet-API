@@ -1,5 +1,6 @@
 ﻿using LootNet_API.Data;
 using LootNet_API.DTO;
+using LootNet_API.DTO.Market;
 using LootNet_API.Enums;
 using LootNet_API.Extensions;
 using LootNet_API.Models;
@@ -103,6 +104,13 @@ public class MarketplaceController : Controller
         var userId = User.GetUserId();
         var result = await _marketplaceService.GetMyTransactionsSummaryAsync(userId);
         return Ok(result);
+    }
+
+    [HttpGet("sell/inventory")]
+    public async Task<IActionResult> GetSellInventory([FromQuery] SellInventoryQueryDTO query)
+    {
+        var userId = User.GetUserId();
+        return Ok(await _marketplaceService.GetSellInventoryAsync(userId, query));
     }
 
     [HttpGet("economy")]

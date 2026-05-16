@@ -432,6 +432,95 @@ public class MarketplaceService : IMarketplaceService
         };
     }
 
+    public async Task<PagedResultDTO<SellInventoryItemDTO>> GetSellInventoryAsync(Guid userId, SellInventoryQueryDTO query)
+    {
+        var itemIds = await _context.InventoryItems
+            .Where(x => x.UserId == userId)
+            .Select(x => x.ItemId)
+            .ToListAsync();
+
+        var equipment = await _context.Equipments.FirstOrDefaultAsync(x => x.UserId == userId);
+        var equipped = equipment == null
+            ? new HashSet<Guid>()
+            : new[]
+            {
+                equipment.HeadId, equipment.BodyId, equipment.GlovesId, equipment.LegsId, equipment.BootsId,
+                equipment.WeaponSlot1Id, equipment.WeaponSlot2Id, equipment.WeaponSlot3Id, equipment.WeaponSlot4Id
+            }.Where(x => x.HasValue).Select(x => x!.Value).ToHashSet();
+
+        var weapons = await _context.Weapons
+            .Include(x => x.Elements)
+            .Where(x => itemIds.Contains(x.Id) && !equipped.Contains(x.Id))
+            .ToListAsync();
+        var armors = await _context.Armors
+            .Include(x => x.Elements)
+            .Where(x => itemIds.Contains(x.Id) && !equipped.Contains(x.Id))
+            .ToListAsync();
+
+        var items = new List<SellInventoryItemDTO>();
+        items.AddRange(weapons.Select(x => new SellInventoryItemDTO
+        {
+            Id = x.Id,
+            Name = x.Name,
+            Category = x.Category,
+            ItemKind = "weapon",
+            WeaponType = x.WeaponType,
+            Cut = x.Cut,
+            Blunt = x.Blunt,
+            Elements = x.Elements.Select(e => new ItemElementDTO { Type = e.ItemElementType, Value = e.Value }).ToList(),
+            PowerScore = Math.Round(x.Cut + x.Blunt, 2, MidpointRounding.AwayFromZero)
+        }));
+        items.AddRange(armors.Select(x => new SellInventoryItemDTO
+        {
+            Id = x.Id,
+            Name = x.Name,
+            Category = x.Category,
+            ItemKind = "armor",
+            ArmorType = x.ArmorType,
+            CutResistance = x.CutResistance,
+            BluntResistance = x.BluntResistance,
+            Elements = x.Elements.Select(e => new ItemElementDTO { Type = e.ItemElementType, Value = e.Value }).ToList(),
+            PowerScore = Math.Round(x.CutResistance + x.BluntResistance, 2, MidpointRounding.AwayFromZero)
+        }));
+
+        if (string.Equals(query.ItemType, "weapon", StringComparison.OrdinalIgnoreCase))
+            items = items.Where(x => x.ItemKind == "weapon").ToList();
+        else if (string.Equals(query.ItemType, "armor", StringComparison.OrdinalIgnoreCase))
+            items = items.Where(x => x.ItemKind == "armor").ToList();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var q = query.Search.Trim();
+            items = items.Where(x => x.Name.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        var priceHint = query.PriceHint.GetValueOrDefault(100m);
+        items = query.SortBy.ToLowerInvariant() switch
+        {
+            "name" => query.SortDirection == SortDirection.Desc
+                ? items.OrderByDescending(x => x.Name).ToList()
+                : items.OrderBy(x => x.Name).ToList(),
+            "price" => query.SortDirection == SortDirection.Desc
+                ? items.OrderByDescending(x => priceHint).ThenByDescending(x => x.PowerScore).ToList()
+                : items.OrderBy(x => priceHint).ThenBy(x => x.PowerScore).ToList(),
+            _ => query.SortDirection == SortDirection.Desc
+                ? items.OrderByDescending(x => x.PowerScore).ThenBy(x => x.Name).ToList()
+                : items.OrderBy(x => x.PowerScore).ThenBy(x => x.Name).ToList()
+        };
+
+        var pageNumber = query.PageNumber <= 0 ? 1 : query.PageNumber;
+        var pageSize = query.PageSize <= 0 ? 30 : query.PageSize;
+        var paged = items.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+
+        return new PagedResultDTO<SellInventoryItemDTO>
+        {
+            Items = paged,
+            TotalCount = items.Count,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+    }
+
     public MarketEconomyDTO GetEconomy()
     {
         var settings = GetEconomySettings();

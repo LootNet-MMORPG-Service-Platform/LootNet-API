@@ -3,6 +3,7 @@
 using LootNet_API.Data;
 using LootNet_API.Configuration;
 using LootNet_API.DTO;
+using LootNet_API.DTO.Market;
 using LootNet_API.DTO.Items;
 using LootNet_API.Enums;
 using LootNet_API.Models;
@@ -789,5 +790,41 @@ public class MarketplaceServiceTests
         Assert.Equal(25, tax.TaxAmount);
         Assert.Equal(475, tax.SellerPayout);
         Assert.Equal(0.05m, tax.EffectiveTaxRate);
+    }
+
+    [Fact]
+    public async Task GetSellInventory_FiltersSortsAndExcludesEquipped()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser();
+
+        var w1 = new Weapon { Id = Guid.NewGuid(), Name = "Alpha Sword", Category = ItemCategory.Weapon, Cut = 8, Blunt = 2 };
+        var w2 = new Weapon { Id = Guid.NewGuid(), Name = "Beta Polearm", Category = ItemCategory.Weapon, Cut = 20, Blunt = 5 };
+        var a1 = new Armor { Id = Guid.NewGuid(), Name = "Crude Helmet", Category = ItemCategory.Armor, CutResistance = 3, BluntResistance = 1 };
+
+        user.Equipment.WeaponSlot1Id = w2.Id;
+        db.Users.Add(user);
+        db.Weapons.AddRange(w1, w2);
+        db.Armors.Add(a1);
+        AddInventory(db, user.Id, w1.Id);
+        AddInventory(db, user.Id, w2.Id);
+        AddInventory(db, user.Id, a1.Id);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+        var result = await service.GetSellInventoryAsync(user.Id, new SellInventoryQueryDTO
+        {
+            ItemType = "weapon",
+            Search = "alpha",
+            SortBy = "power",
+            SortDirection = SortDirection.Desc,
+            PageNumber = 1,
+            PageSize = 10
+        });
+
+        Assert.Single(result.Items);
+        Assert.Equal(w1.Id, result.Items[0].Id);
+        Assert.Equal("weapon", result.Items[0].ItemKind);
+        Assert.DoesNotContain(result.Items, x => x.Id == w2.Id);
     }
 }

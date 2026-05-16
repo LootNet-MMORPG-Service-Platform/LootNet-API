@@ -14,6 +14,7 @@ public interface IMarketplaceService
     Task<MyListingsSummaryDTO> GetMyListingsSummaryAsync(Guid userId);
     Task<PagedResultDTO<MarketTransactionDTO>> GetMyTransactionsAsync(Guid userId, MarketTransactionsQueryDTO query);
     Task<MarketTransactionsSummaryDTO> GetMyTransactionsSummaryAsync(Guid userId);
+    Task<PagedResultDTO<SellInventoryItemDTO>> GetSellInventoryAsync(Guid userId, SellInventoryQueryDTO query);
     MarketEconomyDTO GetEconomy();
     MarketSaleTaxDTO CalculateSaleTax(decimal grossPrice);
     Task<BotSaleOfferDTO> GetBotSaleOfferAsync(Guid userId, Guid itemId);
