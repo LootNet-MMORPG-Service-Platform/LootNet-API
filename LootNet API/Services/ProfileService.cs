@@ -1,4 +1,5 @@
 using LootNet_API.Data;
+using LootNet_API.DTO;
 using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +16,21 @@ public class ProfileService : IProfileService
         _context = context;
         _environment = environment;
         _realtimeNotifier = realtimeNotifier;
+    }
+
+    public async Task<UserProfileDTO> GetProfileAsync(Guid userId)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == userId);
+        if (user == null)
+            throw new InvalidOperationException("User not found.");
+
+        return new UserProfileDTO
+        {
+            Username = user.Username,
+            Currency = user.Currency,
+            Role = user.Role,
+            ProfileImagePath = user.ProfileImagePath
+        };
     }
 
     public async Task<string> UploadProfilePictureAsync(Guid userId, IFormFile file)

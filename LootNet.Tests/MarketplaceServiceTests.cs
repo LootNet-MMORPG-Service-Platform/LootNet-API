@@ -1,6 +1,7 @@
 ﻿namespace LootNet_API.Tests;
 
 using LootNet_API.Data;
+using LootNet_API.Configuration;
 using LootNet_API.DTO;
 using LootNet_API.DTO.Items;
 using LootNet_API.Enums;
@@ -10,6 +11,7 @@ using LootNet_API.Models.Market;
 using LootNet_API.Services;
 using LootNet_API.Tests.Helpers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 public class MarketplaceServiceTests
@@ -17,18 +19,25 @@ public class MarketplaceServiceTests
     private (AppDbContext db, SingleContextFactory factory) Create()
         => DbHelper.Create();
 
-    private User CreateUser(decimal currency = 1000) => new User
+    private User CreateUser(decimal currency = 1000)
     {
-        Id = Guid.NewGuid(),
-        Username = $"user_{Guid.NewGuid()}",
-        PasswordHash = "hash",
-        Currency = currency,
-        Role = UserRole.Player,
-        Equipment = new Equipment { Id = Guid.NewGuid() }
-    };
+        var id = Guid.NewGuid();
+        return new User
+        {
+            Id = id,
+            Username = $"user_{Guid.NewGuid()}",
+            PasswordHash = "hash",
+            Currency = currency,
+            Role = UserRole.Player,
+            Equipment = new Equipment { Id = Guid.NewGuid(), UserId = id }
+        };
+    }
 
     private MarketplaceService CreateService(AppDbContext db, SingleContextFactory factory)
         => new MarketplaceService(db, new InventoryService(factory));
+
+    private MarketplaceService CreateService(AppDbContext db, SingleContextFactory factory, MarketplaceEconomyOptions options)
+        => new MarketplaceService(db, new InventoryService(factory), Options.Create(options));
 
     private void AddInventory(AppDbContext db, Guid userId, Guid itemId)
     {
@@ -54,6 +63,8 @@ public class MarketplaceServiceTests
         Assert.Single(db.MarketListings);
         Assert.Equal(weapon.Id, result.ItemId);
         Assert.Equal(150, result.Price);
+        Assert.Empty(db.InventoryItems.Where(x => x.UserId == user.Id && x.ItemId == weapon.Id));
+        Assert.Single(db.MarketInventoryItems.Where(x => x.UserId == user.Id && x.ItemId == weapon.Id));
     }
 
     [Fact]
@@ -68,6 +79,24 @@ public class MarketplaceServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CreateListingAsync(user.Id, new CreateMarketListingDTO { ItemId = Guid.NewGuid(), Price = 150 }));
+    }
+
+    [Fact]
+    public async Task CreateListing_Throws_WhenPriceIsNotPositive()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser();
+        var weapon = new Weapon { Id = Guid.NewGuid(), Name = "Sword", Category = ItemCategory.Weapon };
+
+        db.Users.Add(user);
+        db.Weapons.Add(weapon);
+        AddInventory(db, user.Id, weapon.Id);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateListingAsync(user.Id, new CreateMarketListingDTO { ItemId = weapon.Id, Price = 0 }));
     }
 
     [Fact]
@@ -87,7 +116,6 @@ public class MarketplaceServiceTests
         var marketplaceService = new MarketplaceService(db, inventoryService);
 
         await inventoryService.AddToInventoryAsync(seller.Id, weapon.Id);
-        await inventoryService.MoveToMarketAsync(seller.Id, weapon.Id);
 
         var listing = await marketplaceService.CreateListingAsync(seller.Id, new CreateMarketListingDTO { ItemId = weapon.Id, Price = 300 });
         await marketplaceService.BuyItemAsync(buyer.Id, listing.Id);
@@ -98,9 +126,14 @@ public class MarketplaceServiceTests
         var buyerItems = await db.InventoryItems.Where(x => x.UserId == buyer.Id).ToListAsync();
 
         Assert.Equal(200, updatedBuyer.Currency);
-        Assert.Equal(1300, updatedSeller.Currency);
+        Assert.Equal(1285, updatedSeller.Currency);
         Assert.True(updatedListing.IsSold);
         Assert.Single(buyerItems);
+
+        var transaction = await db.Transactions.SingleAsync();
+        Assert.Equal(300, transaction.Price);
+        Assert.Equal(15, transaction.TaxAmount);
+        Assert.Equal(285, transaction.SellerPayout);
     }
 
     [Fact]
@@ -454,5 +487,214 @@ public class MarketplaceServiceTests
         Assert.Equal(200, summary.TotalSold);
         Assert.Equal(200, summary.TotalBought);
         Assert.Equal(0, summary.Difference);
+    }
+
+    [Fact]
+    public void CalculateSaleTax_UsesMarginalProgressiveBrackets()
+    {
+        var (db, factory) = Create();
+        var service = CreateService(db, factory);
+
+        var tax = service.CalculateSaleTax(12_000);
+
+        Assert.Equal(12_000, tax.GrossPrice);
+        Assert.Equal(2_115, tax.TaxAmount);
+        Assert.Equal(9_885, tax.SellerPayout);
+        Assert.Equal(0.1763m, tax.EffectiveTaxRate);
+    }
+
+    [Fact]
+    public void CalculateSaleTax_Throws_WhenPriceIsNotPositive()
+    {
+        var (db, factory) = Create();
+        var service = CreateService(db, factory);
+
+        Assert.Throws<InvalidOperationException>(() => service.CalculateSaleTax(0));
+    }
+
+    [Fact]
+    public async Task SellItemToBot_PaysStatBasedPrice_RemovesItem_AndRecordsTransaction()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser(currency: 100);
+        var weapon = new Weapon
+        {
+            Id = Guid.NewGuid(),
+            Name = "Precise Sword",
+            Category = ItemCategory.Weapon,
+            Cut = 10,
+            Blunt = 5,
+            Elements = new List<ItemElement>
+            {
+                new() { Id = Guid.NewGuid(), ItemElementType = ItemElementType.Fire, Value = 2 }
+            }
+        };
+
+        db.Users.Add(user);
+        db.Weapons.Add(weapon);
+        AddInventory(db, user.Id, weapon.Id);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+        var result = await service.SellItemToBotAsync(user.Id, weapon.Id);
+
+        Assert.Equal(164, result.PaidAmount);
+        Assert.Equal(264, result.CurrencyAfterSale);
+        Assert.Empty(db.InventoryItems.Where(x => x.UserId == user.Id && x.ItemId == weapon.Id));
+        Assert.Empty(db.Weapons.Where(x => x.Id == weapon.Id));
+
+        var transaction = await db.Transactions.SingleAsync();
+        Assert.Equal(user.Id, transaction.SellerId);
+        Assert.Equal(164, transaction.Price);
+        Assert.Equal(164, transaction.SellerPayout);
+        Assert.Equal(0, transaction.TaxAmount);
+    }
+
+    [Fact]
+    public async Task GetBotSaleOffer_ReturnsStatBasedPrice_WithoutMutatingState()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser(currency: 100);
+        var armor = new Armor
+        {
+            Id = Guid.NewGuid(),
+            Name = "Layered Chest",
+            Category = ItemCategory.Armor,
+            ArmorType = ArmorType.Chestplate,
+            CutResistance = 7,
+            BluntResistance = 3
+        };
+
+        db.Users.Add(user);
+        db.Armors.Add(armor);
+        AddInventory(db, user.Id, armor.Id);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+        var offer = await service.GetBotSaleOfferAsync(user.Id, armor.Id);
+
+        Assert.Equal(100, offer.OfferedPrice);
+        Assert.Equal(100, user.Currency);
+        Assert.Single(db.InventoryItems.Where(x => x.UserId == user.Id && x.ItemId == armor.Id));
+        Assert.Empty(db.Transactions);
+    }
+
+    [Fact]
+    public async Task EconomySettings_ControlBotPriceAndTaxBrackets()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser(currency: 100);
+        var weapon = new Weapon
+        {
+            Id = Guid.NewGuid(),
+            Name = "Config Sword",
+            Category = ItemCategory.Weapon,
+            Cut = 10,
+            Blunt = 5
+        };
+        var options = new MarketplaceEconomyOptions
+        {
+            DailyCurrencyReward = 33,
+            BotBasePrice = 10,
+            BotStatMultiplier = 2,
+            BotElementMultiplier = 1,
+            ProgressiveTaxBrackets = new List<MarketplaceTaxBracketOptions>
+            {
+                new() { From = 0, To = 100, Rate = 0.10m },
+                new() { From = 100, To = null, Rate = 0.20m }
+            }
+        };
+
+        db.Users.Add(user);
+        db.Weapons.Add(weapon);
+        AddInventory(db, user.Id, weapon.Id);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory, options);
+        var economy = service.GetEconomy();
+        var offer = await service.GetBotSaleOfferAsync(user.Id, weapon.Id);
+        var tax = service.CalculateSaleTax(150);
+
+        Assert.Equal(33, economy.DailyCurrencyReward);
+        Assert.Equal(40, offer.OfferedPrice);
+        Assert.Equal(20, tax.TaxAmount);
+        Assert.Equal(130, tax.SellerPayout);
+    }
+
+    [Fact]
+    public async Task SellItemToBot_AppliesProgressiveTax_WhenEnabled()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser(currency: 100);
+        var weapon = new Weapon
+        {
+            Id = Guid.NewGuid(),
+            Name = "Taxed Bot Sword",
+            Category = ItemCategory.Weapon,
+            Cut = 10,
+            Blunt = 5
+        };
+        var options = new MarketplaceEconomyOptions
+        {
+            DailyCurrencyReward = 75,
+            BotBasePrice = 0,
+            BotStatMultiplier = 10,
+            BotElementMultiplier = 1,
+            IsPlayerToPlayerTaxEnabled = true,
+            IsPlayerToBotTaxEnabled = true,
+            ProgressiveTaxBrackets = new List<MarketplaceTaxBracketOptions>
+            {
+                new() { From = 0, To = 100, Rate = 0.10m },
+                new() { From = 100, To = null, Rate = 0.20m }
+            }
+        };
+
+        db.Users.Add(user);
+        db.Weapons.Add(weapon);
+        AddInventory(db, user.Id, weapon.Id);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory, options);
+        var result = await service.SellItemToBotAsync(user.Id, weapon.Id);
+
+        Assert.Equal(130, result.PaidAmount);
+        Assert.Equal(230, result.CurrencyAfterSale);
+
+        var transaction = await db.Transactions.SingleAsync();
+        Assert.Equal(150, transaction.Price);
+        Assert.Equal(20, transaction.TaxAmount);
+        Assert.Equal(130, transaction.SellerPayout);
+    }
+
+    [Fact]
+    public async Task SellItemToBot_Throws_WhenItemIsNotInInventory()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser();
+        var weapon = new Weapon { Id = Guid.NewGuid(), Name = "Sword", Category = ItemCategory.Weapon };
+        db.Users.Add(user);
+        db.Weapons.Add(weapon);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SellItemToBotAsync(user.Id, weapon.Id));
+    }
+
+    [Fact]
+    public async Task SellItemToBot_Throws_WhenItemIsEquipped()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser();
+        var weapon = new Weapon { Id = Guid.NewGuid(), Name = "Sword", Category = ItemCategory.Weapon };
+        user.Equipment.WeaponSlot1Id = weapon.Id;
+        db.Users.Add(user);
+        db.Weapons.Add(weapon);
+        AddInventory(db, user.Id, weapon.Id);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SellItemToBotAsync(user.Id, weapon.Id));
     }
 }

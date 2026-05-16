@@ -13,6 +13,11 @@ public interface IMarketplaceService
     Task<MyListingsSummaryDTO> GetMyListingsSummaryAsync(Guid userId);
     Task<PagedResultDTO<MarketTransactionDTO>> GetMyTransactionsAsync(Guid userId, MarketTransactionsQueryDTO query);
     Task<MarketTransactionsSummaryDTO> GetMyTransactionsSummaryAsync(Guid userId);
+    MarketEconomyDTO GetEconomy();
+    MarketSaleTaxDTO CalculateSaleTax(decimal grossPrice);
+    Task<BotSaleOfferDTO> GetBotSaleOfferAsync(Guid userId, Guid itemId);
+    Task<BotSaleResultDTO> SellItemToBotAsync(Guid userId, Guid itemId);
+    Task<LootNet_API.DTO.Items.ItemRewardDTO> ClaimWebDailyAsync(Guid userId);
     Task ChangeListingPriceAsync(Guid userId, Guid listingId, decimal price);
     Task CancelListingAsync(Guid userId, Guid listingId);
     Task<MarketListing> CreateListingAsync(Guid userId, CreateMarketListingDTO dto);

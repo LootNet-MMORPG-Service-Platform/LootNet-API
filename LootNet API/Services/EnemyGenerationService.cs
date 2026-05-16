@@ -65,19 +65,6 @@ public class EnemyGenerationService : IEnemyGenerationService
                 break;
         }
 
-        if (enemies.Count == 0)
-        {
-            var fallbackProfile = await _context.Set<EnemyClassProfile>()
-                .OrderByDescending(x => x.Weight)
-                .FirstOrDefaultAsync();
-
-            if (fallbackProfile != null)
-            {
-                var fallbackEnemy = await CreateEnemy(fallbackProfile, 1, generatedItems);
-                enemies.Add(fallbackEnemy);
-            }
-        }
-
         if (generatedItems.Count > 0)
         {
             var weapons = generatedItems.OfType<Weapon>().ToList();

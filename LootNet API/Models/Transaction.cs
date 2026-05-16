@@ -7,6 +7,8 @@
         public Guid SellerId { get; set; }
         public Guid ItemId { get; set; }
         public int Price { get; set; }
+        public decimal TaxAmount { get; set; }
+        public decimal SellerPayout { get; set; }
         public DateTime Timestamp { get; set; }
     }
 }

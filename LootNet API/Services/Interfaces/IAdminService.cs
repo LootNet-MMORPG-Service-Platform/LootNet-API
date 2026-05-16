@@ -29,4 +29,8 @@ public interface IAdminService
     Task<List<AdminRunListDTO>> GetUserRunsAsync(Guid userId);
 
     Task<AdminRunDetailsDTO> GetRunAsync(Guid runId);
+    Task<MarketEconomyDTO> GetMarketplaceEconomyAsync();
+    Task<MarketEconomyDTO> UpdateMarketplaceEconomyAsync(Guid adminId, UpdateMarketplaceEconomyDTO dto);
+    Task<PagedResultDTO<AdminLogDTO>> GetAdminLogsAsync(AdminLogsQueryDTO query);
+    Task<MarketplaceEconomyStatsDTO> GetMarketplaceEconomyStatsAsync();
 }

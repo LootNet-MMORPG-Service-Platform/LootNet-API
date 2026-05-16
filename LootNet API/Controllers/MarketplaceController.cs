@@ -15,18 +15,14 @@ using Microsoft.EntityFrameworkCore;
 public class MarketplaceController : Controller
 {
     private readonly IMarketplaceService _marketplaceService;
-    private readonly IInventoryService _inventoryService;
     private readonly IProfileService _profileService;
-    private readonly AppDbContext _context;
 
     public MarketplaceController(
-        IMarketplaceService marketplaceService, IInventoryService inventoryService,
-        IProfileService profileService, AppDbContext context)
+        IMarketplaceService marketplaceService,
+        IProfileService profileService)
     {
         _marketplaceService = marketplaceService;
-        _inventoryService = inventoryService;
         _profileService = profileService;
-        _context = context;
     }
 
     [HttpPost("me/pfp")]
@@ -48,22 +44,17 @@ public class MarketplaceController : Controller
     }
 
     [HttpGet("me")]
-    public IActionResult GetProfile()
+    public async Task<IActionResult> GetProfile()
     {
-        var userId = User.GetUserId();
-
-        var user = _context.Users.FirstOrDefault(x => x.Id == userId);
-
-        if (user == null)
-            return NotFound();
-
-        return Ok(new UserProfileDTO
+        try
         {
-            Username = user.Username,
-            Currency = user.Currency,
-            Role = user.Role,
-            ProfileImagePath = user.ProfileImagePath
-        });
+            var userId = User.GetUserId();
+            return Ok(await _profileService.GetProfileAsync(userId));
+        }
+        catch (InvalidOperationException)
+        {
+            return NotFound();
+        }
     }
 
     [HttpPost("listing/weapons")]
@@ -114,16 +105,82 @@ public class MarketplaceController : Controller
         return Ok(result);
     }
 
+    [HttpGet("economy")]
+    public IActionResult GetEconomy()
+    {
+        return Ok(_marketplaceService.GetEconomy());
+    }
+
+    [HttpGet("tax-preview")]
+    public IActionResult GetTaxPreview([FromQuery] decimal price)
+    {
+        try
+        {
+            return Ok(_marketplaceService.CalculateSaleTax(price));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("bot/quote")]
+    public async Task<IActionResult> GetBotSaleOffer([FromBody] SellItemToBotDTO dto)
+    {
+        try
+        {
+            var userId = User.GetUserId();
+            var result = await _marketplaceService.GetBotSaleOfferAsync(userId, dto.ItemId);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("bot/sell")]
+    public async Task<IActionResult> SellItemToBot([FromBody] SellItemToBotDTO dto)
+    {
+        try
+        {
+            var userId = User.GetUserId();
+            var result = await _marketplaceService.SellItemToBotAsync(userId, dto.ItemId);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("daily")]
+    public async Task<IActionResult> ClaimWebDaily()
+    {
+        try
+        {
+            var userId = User.GetUserId();
+            return Ok(await _marketplaceService.ClaimWebDailyAsync(userId));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("sell")]
     public async Task<IActionResult> CreateListing(CreateMarketListingDTO dto)
     {
-        var userId = User.GetUserId();
-
-        await _inventoryService.MoveToMarketAsync(userId, dto.ItemId);
-
-        var listing = await _marketplaceService.CreateListingAsync(userId, dto);
-
-        return Ok(listing);
+        try
+        {
+            var userId = User.GetUserId();
+            var listing = await _marketplaceService.CreateListingAsync(userId, dto);
+            return Ok(listing);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("{id}/buy")]

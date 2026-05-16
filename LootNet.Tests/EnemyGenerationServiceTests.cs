@@ -66,6 +66,7 @@ public class EnemyGenerationServiceTests
             Id = Guid.NewGuid(),
             Name = s.cls.ToString(),
             Class = s.cls,
+            AllowedColumns = GetAllowedColumns(s.cls),
             GenerationProfileId = profileId,
             Weight = 1
         }).ToList();
@@ -100,6 +101,19 @@ public class EnemyGenerationServiceTests
 
         return profileId;
     }
+
+    private static List<int> GetAllowedColumns(EnemyClass enemyClass)
+        => enemyClass switch
+        {
+            EnemyClass.Tank => new List<int> { 1 },
+            EnemyClass.Polearm => new List<int> { 1, 2 },
+            EnemyClass.Skirmisher => new List<int> { 1, 2 },
+            EnemyClass.Crossbow => new List<int> { 2, 3 },
+            EnemyClass.Archer => new List<int> { 3, 4 },
+            EnemyClass.TwoHand => new List<int> { 1 },
+            EnemyClass.DualWield => new List<int> { 1 },
+            _ => new List<int>()
+        };
 
     [Fact]
     public async Task GenerateEnemies_ShouldReturnEnemies()

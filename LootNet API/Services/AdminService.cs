@@ -1,4 +1,5 @@
 ﻿using LootNet_API.Data;
+using LootNet_API.Configuration;
 using LootNet_API.DTO;
 using LootNet_API.DTO.Admin;
 using LootNet_API.DTO.Items;
@@ -8,6 +9,7 @@ using LootNet_API.Models.GameRun;
 using LootNet_API.Models.Logs;
 using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Linq.Expressions;
 
 namespace LootNet_API.Services;
@@ -17,13 +19,20 @@ public class AdminService : IAdminService
     private readonly AppDbContext _context;
     private readonly IInventoryService _inventory;
     private readonly IEquipmentService _equipment;
+    private readonly MarketplaceEconomyOptions _economyOptions;
     private readonly IRealtimeNotifier? _realtimeNotifier;
 
-    public AdminService(AppDbContext context, IInventoryService inventory, IEquipmentService equipment, IRealtimeNotifier? realtimeNotifier = null)
+    public AdminService(
+        AppDbContext context,
+        IInventoryService inventory,
+        IEquipmentService equipment,
+        IRealtimeNotifier? realtimeNotifier = null,
+        IOptions<MarketplaceEconomyOptions>? economyOptions = null)
     {
         _context = context;
         _inventory = inventory;
         _equipment = equipment;
+        _economyOptions = economyOptions?.Value ?? new MarketplaceEconomyOptions();
         _realtimeNotifier = realtimeNotifier;
     }
 
@@ -217,6 +226,72 @@ public class AdminService : IAdminService
         await (_realtimeNotifier?.AppChangedAsync("admin.user", "role-changed", userId, new { oldRole, role }) ?? Task.CompletedTask);
     }
 
+    public async Task<MarketEconomyDTO> GetMarketplaceEconomyAsync()
+    {
+        var settings = await EnsureEconomySettingsAsync();
+        return MapEconomy(settings);
+    }
+
+    public async Task<MarketEconomyDTO> UpdateMarketplaceEconomyAsync(Guid adminId, UpdateMarketplaceEconomyDTO dto)
+    {
+        ValidateEconomy(dto);
+        await LogAsync(adminId, "UPDATE_MARKETPLACE_ECONOMY", adminId, dto);
+        await (_realtimeNotifier?.AppChangedAsync("admin.market", "economy-updated", adminId) ?? Task.CompletedTask);
+        return MapEconomy(ToSettings(dto));
+    }
+
+    public async Task<PagedResultDTO<AdminLogDTO>> GetAdminLogsAsync(AdminLogsQueryDTO query)
+    {
+        var q = _context.AdminLogs.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query.Action))
+            q = q.Where(x => x.Action == query.Action);
+        if (query.AdminId.HasValue)
+            q = q.Where(x => x.AdminId == query.AdminId.Value);
+        if (!string.IsNullOrWhiteSpace(query.TargetUserId))
+            q = q.Where(x => x.TargetUserId == query.TargetUserId);
+
+        var total = await q.CountAsync();
+        var items = await q
+            .OrderByDescending(x => x.CreatedAt)
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .Select(x => new AdminLogDTO
+            {
+                Id = x.Id,
+                AdminId = x.AdminId,
+                Action = x.Action,
+                TargetUserId = x.TargetUserId,
+                CreatedAt = x.CreatedAt,
+                Data = x.Data
+            })
+            .ToListAsync();
+
+        return new PagedResultDTO<AdminLogDTO> { Items = items, TotalCount = total, Page = query.Page, PageSize = query.PageSize };
+    }
+
+    public async Task<MarketplaceEconomyStatsDTO> GetMarketplaceEconomyStatsAsync()
+    {
+        var botBuyerId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var transactions = await _context.Transactions.ToListAsync();
+        var p2p = transactions.Where(x => x.BuyerId != botBuyerId).ToList();
+        var bot = transactions.Where(x => x.BuyerId == botBuyerId).ToList();
+        var activeListings = await _context.MarketListings.Where(x => !x.IsSold).ToListAsync();
+
+        return new MarketplaceEconomyStatsDTO
+        {
+            TotalCurrencyHeldByPlayers = await _context.Users.SumAsync(x => x.Currency),
+            TotalP2PVolume = p2p.Sum(x => (decimal)x.Price),
+            TotalBotSaleVolume = bot.Sum(x => (decimal)x.Price),
+            TotalTaxRemoved = transactions.Sum(x => x.TaxAmount),
+            TotalP2PTaxRemoved = p2p.Sum(x => x.TaxAmount),
+            TotalBotTaxRemoved = bot.Sum(x => x.TaxAmount),
+            ActiveListings = activeListings.Count,
+            ActiveListingsValue = activeListings.Sum(x => x.Price),
+            TransactionCount = transactions.Count
+        };
+    }
+
     private async Task LogAsync(Guid adminId, string action, Guid targetUserId, object? data = null)
     {
         _context.AdminLogs.Add(new AdminLog
@@ -229,6 +304,96 @@ public class AdminService : IAdminService
         });
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task<EconomySettings> EnsureEconomySettingsAsync()
+    {
+        var serialized = await _context.AdminLogs
+            .Where(x => x.Action == "UPDATE_MARKETPLACE_ECONOMY" && x.Data != null)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => x.Data)
+            .FirstOrDefaultAsync();
+
+        if (!string.IsNullOrWhiteSpace(serialized))
+        {
+            var dto = System.Text.Json.JsonSerializer.Deserialize<UpdateMarketplaceEconomyDTO>(serialized);
+            if (dto != null)
+                return ToSettings(dto);
+        }
+
+        return new EconomySettings
+        {
+            DailyCurrencyReward = _economyOptions.DailyCurrencyReward,
+            BotBasePrice = _economyOptions.BotBasePrice,
+            BotStatMultiplier = _economyOptions.BotStatMultiplier,
+            BotElementMultiplier = _economyOptions.BotElementMultiplier,
+            IsPlayerToPlayerTaxEnabled = _economyOptions.IsPlayerToPlayerTaxEnabled,
+            IsPlayerToBotTaxEnabled = _economyOptions.IsPlayerToBotTaxEnabled,
+            ProgressiveTaxBrackets = _economyOptions.ProgressiveTaxBrackets.Select(x => new MarketTaxBracketDTO
+            {
+                From = x.From,
+                To = x.To,
+                Rate = x.Rate
+            }).ToList()
+        };
+    }
+
+    private static EconomySettings ToSettings(UpdateMarketplaceEconomyDTO dto)
+    {
+        return new EconomySettings
+        {
+            DailyCurrencyReward = dto.DailyCurrencyReward,
+            BotBasePrice = dto.BotBasePrice,
+            BotStatMultiplier = dto.BotStatMultiplier,
+            BotElementMultiplier = dto.BotElementMultiplier,
+            IsPlayerToPlayerTaxEnabled = dto.IsPlayerToPlayerTaxEnabled,
+            IsPlayerToBotTaxEnabled = dto.IsPlayerToBotTaxEnabled,
+            ProgressiveTaxBrackets = dto.ProgressiveTaxBrackets.OrderBy(x => x.From).ToList()
+        };
+    }
+
+    private static MarketEconomyDTO MapEconomy(EconomySettings settings)
+    {
+        return new MarketEconomyDTO
+        {
+            DailyCurrencyReward = settings.DailyCurrencyReward,
+            BotBasePrice = settings.BotBasePrice,
+            BotStatMultiplier = settings.BotStatMultiplier,
+            BotElementMultiplier = settings.BotElementMultiplier,
+            IsPlayerToPlayerTaxEnabled = settings.IsPlayerToPlayerTaxEnabled,
+            IsPlayerToBotTaxEnabled = settings.IsPlayerToBotTaxEnabled,
+            BotSaleFormula = $"{settings.BotBasePrice} + (primary stats + element values * {settings.BotElementMultiplier}) * {settings.BotStatMultiplier}, rounded to full currency.",
+            ProgressiveTaxBrackets = settings.ProgressiveTaxBrackets
+                .OrderBy(x => x.From)
+                .ToList()
+        };
+    }
+
+    private sealed class EconomySettings
+    {
+        public decimal DailyCurrencyReward { get; set; }
+        public decimal BotBasePrice { get; set; }
+        public decimal BotStatMultiplier { get; set; }
+        public decimal BotElementMultiplier { get; set; }
+        public bool IsPlayerToPlayerTaxEnabled { get; set; }
+        public bool IsPlayerToBotTaxEnabled { get; set; }
+        public List<MarketTaxBracketDTO> ProgressiveTaxBrackets { get; set; } = new();
+    }
+
+    private static void ValidateEconomy(UpdateMarketplaceEconomyDTO dto)
+    {
+        if (dto.DailyCurrencyReward < 0 || dto.BotBasePrice < 0 || dto.BotStatMultiplier < 0 || dto.BotElementMultiplier < 0)
+            throw new InvalidOperationException("Economy values cannot be negative.");
+        if (dto.ProgressiveTaxBrackets.Count == 0)
+            throw new InvalidOperationException("At least one tax bracket is required.");
+
+        foreach (var bracket in dto.ProgressiveTaxBrackets)
+        {
+            if (bracket.From < 0 || bracket.Rate < 0 || bracket.Rate > 1)
+                throw new InvalidOperationException("Invalid tax bracket.");
+            if (bracket.To.HasValue && bracket.To.Value <= bracket.From)
+                throw new InvalidOperationException("Tax bracket upper bound must be greater than lower bound.");
+        }
     }
 
     private IQueryable<User> ApplyUserFilters(IQueryable<User> q, GetUsersQueryDTO query)

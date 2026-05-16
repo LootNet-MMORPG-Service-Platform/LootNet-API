@@ -1,26 +1,41 @@
 ﻿namespace LootNet_API.Services;
 
+using LootNet_API.Configuration;
 using LootNet_API.Data;
 using LootNet_API.DTO;
+using LootNet_API.DTO.Admin;
 using LootNet_API.DTO.Items;
 using LootNet_API.Enums;
 using LootNet_API.Models;
 using LootNet_API.Models.Items;
+using LootNet_API.Models.Logs;
 using LootNet_API.Models.Market;
 using LootNet_API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 public class MarketplaceService : IMarketplaceService
 {
+    private static readonly Guid BotBuyerId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
     private readonly AppDbContext _context;
     private readonly IInventoryService _inventoryService;
+    private readonly MarketplaceEconomyOptions _economyOptions;
     private readonly IRealtimeNotifier? _realtimeNotifier;
+    private readonly IItemGenerationService? _itemGenerationService;
 
-    public MarketplaceService(AppDbContext context, IInventoryService inventoryService, IRealtimeNotifier? realtimeNotifier = null)
+    public MarketplaceService(
+        AppDbContext context,
+        IInventoryService inventoryService,
+        IOptions<MarketplaceEconomyOptions>? economyOptions = null,
+        IRealtimeNotifier? realtimeNotifier = null,
+        IItemGenerationService? itemGenerationService = null)
     {
         _context = context;
         _inventoryService = inventoryService;
+        _economyOptions = economyOptions?.Value ?? new MarketplaceEconomyOptions();
         _realtimeNotifier = realtimeNotifier;
+        _itemGenerationService = itemGenerationService;
     }
 
     public async Task<PagedResultDTO<WeaponMarketDTO>> GetWeaponsAsync(Guid userId, WeaponQueryDTO q)
@@ -354,9 +369,11 @@ public class MarketplaceService : IMarketplaceService
                 ItemId = t.ItemId,
                 ItemName = itemName,
                 Price = t.Price,
+                TaxAmount = t.TaxAmount,
+                SellerPayout = t.SellerPayout > 0 ? t.SellerPayout : t.Price,
                 Timestamp = t.Timestamp,
                 IsSale = isSale,
-                CounterpartyUsername = counterpartyName,
+                CounterpartyUsername = counterpartyId == BotBuyerId ? "LootNet Bot" : counterpartyName,
                 CounterpartyUserId = counterpartyId
             };
         }).ToList();
@@ -402,13 +419,185 @@ public class MarketplaceService : IMarketplaceService
             .Where(x => x.BuyerId == userId || x.SellerId == userId)
             .ToListAsync();
 
-        var totalSold = transactions.Where(x => x.SellerId == userId).Sum(x => (decimal)x.Price);
+        var totalSold = transactions
+            .Where(x => x.SellerId == userId)
+            .Sum(x => x.SellerPayout > 0 ? x.SellerPayout : (decimal)x.Price);
         var totalBought = transactions.Where(x => x.BuyerId == userId).Sum(x => (decimal)x.Price);
 
         return new MarketTransactionsSummaryDTO
         {
             TotalSold = totalSold,
             TotalBought = totalBought
+        };
+    }
+
+    public MarketEconomyDTO GetEconomy()
+    {
+        var settings = GetEconomySettings();
+        return new MarketEconomyDTO
+        {
+            DailyCurrencyReward = settings.DailyCurrencyReward,
+            BotBasePrice = settings.BotBasePrice,
+            BotStatMultiplier = settings.BotStatMultiplier,
+            BotElementMultiplier = settings.BotElementMultiplier,
+            IsPlayerToPlayerTaxEnabled = settings.IsPlayerToPlayerTaxEnabled,
+            IsPlayerToBotTaxEnabled = settings.IsPlayerToBotTaxEnabled,
+            BotSaleFormula = $"{settings.BotBasePrice} + (primary stats + element values * {settings.BotElementMultiplier}) * {settings.BotStatMultiplier}, rounded to full currency.",
+            ProgressiveTaxBrackets = settings.ProgressiveTaxBrackets.Select(x => new MarketTaxBracketDTO
+            {
+                From = x.From,
+                To = x.To,
+                Rate = x.Rate
+            }).ToList()
+        };
+    }
+
+    public MarketSaleTaxDTO CalculateSaleTax(decimal grossPrice)
+        => CalculateSaleTax(grossPrice, GetEconomySettings().IsPlayerToPlayerTaxEnabled);
+
+    private MarketSaleTaxDTO CalculateSaleTax(decimal grossPrice, bool isEnabled)
+    {
+        if (grossPrice <= 0)
+            throw new InvalidOperationException("Price must be greater than 0.");
+
+        var tax = isEnabled
+            ? GetEconomySettings().ProgressiveTaxBrackets.Sum(x => CalculateBracketTax(grossPrice, x))
+            : 0m;
+        tax = Math.Round(tax, 2, MidpointRounding.AwayFromZero);
+
+        return new MarketSaleTaxDTO
+        {
+            GrossPrice = grossPrice,
+            TaxAmount = tax,
+            SellerPayout = grossPrice - tax,
+            EffectiveTaxRate = Math.Round(tax / grossPrice, 4, MidpointRounding.AwayFromZero)
+        };
+    }
+
+    public async Task<BotSaleOfferDTO> GetBotSaleOfferAsync(Guid userId, Guid itemId)
+    {
+        await EnsureItemIsSellableFromInventoryAsync(userId, itemId);
+
+        var item = await LoadItemAsync(itemId);
+        if (item == null)
+            throw new InvalidOperationException("Item not found.");
+
+        return CreateBotSaleOffer(item);
+    }
+
+    public async Task<BotSaleResultDTO> SellItemToBotAsync(Guid userId, Guid itemId)
+    {
+        var inventoryItem = await _context.InventoryItems
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.ItemId == itemId);
+        if (inventoryItem == null)
+            throw new InvalidOperationException("Item not in inventory.");
+
+        if (await IsEquippedAsync(userId, itemId))
+            throw new InvalidOperationException("Unequip item before selling it to the bot.");
+
+        var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == userId);
+        if (user == null)
+            throw new InvalidOperationException("User account not found. Log in again.");
+
+        var item = await LoadItemAsync(itemId);
+        if (item == null)
+            throw new InvalidOperationException("Item not found.");
+
+        var offer = CreateBotSaleOffer(item);
+        user.Currency += offer.SellerPayout;
+        _context.InventoryItems.Remove(inventoryItem);
+
+        switch (item)
+        {
+            case Weapon weapon:
+                _context.Weapons.Remove(weapon);
+                break;
+            case Armor armor:
+                _context.Armors.Remove(armor);
+                break;
+        }
+
+        _context.Transactions.Add(new Transaction
+        {
+            Id = Guid.NewGuid(),
+            BuyerId = BotBuyerId,
+            SellerId = userId,
+            ItemId = itemId,
+            Price = DecimalToTransactionPrice(offer.OfferedPrice),
+            SellerPayout = offer.SellerPayout,
+            TaxAmount = offer.TaxAmount,
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        await NotifyAsync("market", "item-sold-to-bot", userId, new { itemId, paidAmount = offer.SellerPayout, taxAmount = offer.TaxAmount });
+
+        return new BotSaleResultDTO
+        {
+            ItemId = itemId,
+            ItemName = offer.ItemName,
+            Category = offer.Category,
+            PaidAmount = offer.SellerPayout,
+            CurrencyAfterSale = user.Currency
+        };
+    }
+
+    public async Task<ItemRewardDTO> ClaimWebDailyAsync(Guid userId)
+    {
+        if (_itemGenerationService == null)
+            throw new InvalidOperationException("Daily reward service is not available.");
+
+        var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == userId);
+        if (user == null)
+            throw new InvalidOperationException("User account not found. Log in again.");
+
+        var claimedToday = await _context.AdminLogs.AnyAsync(x =>
+            x.Action == "WEB_DAILY_CLAIMED" &&
+            x.TargetUserId == userId.ToString() &&
+            x.CreatedAt.Date == DateTime.UtcNow.Date);
+
+        if (claimedToday)
+            throw new InvalidOperationException("Web daily already claimed.");
+
+        var item = await _itemGenerationService.GenerateItemAsync(userId);
+        switch (item)
+        {
+            case Weapon weapon:
+                _context.Weapons.Add(weapon);
+                break;
+            case Armor armor:
+                _context.Armors.Add(armor);
+                break;
+        }
+
+        _context.InventoryItems.Add(new InventoryItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            ItemId = item.Id
+        });
+
+        var economy = GetEconomySettings();
+        user.Currency += economy.DailyCurrencyReward;
+        _context.AdminLogs.Add(new AdminLog
+        {
+            Id = Guid.NewGuid(),
+            AdminId = userId,
+            Action = "WEB_DAILY_CLAIMED",
+            TargetUserId = userId.ToString(),
+            Data = System.Text.Json.JsonSerializer.Serialize(new { item.Id, item.Name, currencyReward = economy.DailyCurrencyReward })
+        });
+
+        await _context.SaveChangesAsync();
+        await NotifyAsync("reward", "web-daily-claimed", userId, new { itemId = item.Id, item.Name, currencyReward = economy.DailyCurrencyReward });
+
+        return new ItemRewardDTO
+        {
+            Id = item.Id,
+            Name = item.Name,
+            Category = item.Category,
+            CurrencyReward = economy.DailyCurrencyReward,
+            CurrencyAfterReward = user.Currency
         };
     }
 
@@ -444,6 +633,14 @@ public class MarketplaceService : IMarketplaceService
 
     public async Task<MarketListing> CreateListingAsync(Guid userId, CreateMarketListingDTO dto)
     {
+        if (dto.Price <= 0)
+            throw new InvalidOperationException("Price must be greater than 0.");
+
+        var inventoryItem = await _context.InventoryItems
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.ItemId == dto.ItemId);
+        if (inventoryItem == null)
+            throw new InvalidOperationException("Item not in inventory.");
+
         var item = await _context.Weapons.FirstOrDefaultAsync(x => x.Id == dto.ItemId)
                  ?? (Item?)await _context.Armors.FirstOrDefaultAsync(x => x.Id == dto.ItemId);
 
@@ -459,9 +656,12 @@ public class MarketplaceService : IMarketplaceService
             Category = item.Category
         };
 
+        _context.InventoryItems.Remove(inventoryItem);
+        _context.MarketInventoryItems.Add(new MarketInventoryItem { Id = Guid.NewGuid(), UserId = userId, ItemId = dto.ItemId });
         _context.MarketListings.Add(listing);
 
         await _context.SaveChangesAsync();
+        await NotifyAsync("inventory", "move-to-market", userId, new { dto.ItemId });
         await NotifyAsync("market", "listing-created", userId, new { listingId = listing.Id, dto.ItemId });
 
         return listing;
@@ -489,16 +689,143 @@ public class MarketplaceService : IMarketplaceService
         if (buyer.Currency < listing.Price)
             throw new InvalidOperationException("Not enough currency");
 
+        var tax = CalculateSaleTax(listing.Price, GetEconomySettings().IsPlayerToPlayerTaxEnabled);
         buyer.Currency -= listing.Price;
-        seller.Currency += listing.Price;
+        seller.Currency += tax.SellerPayout;
 
         await _inventoryService.TransferFromSellerToBuyerAsync(seller.Id, buyerId, listing.ItemId);
 
         listing.IsSold = true;
+        _context.Transactions.Add(new Transaction
+        {
+            Id = Guid.NewGuid(),
+            BuyerId = buyerId,
+            SellerId = seller.Id,
+            ItemId = listing.ItemId,
+            Price = DecimalToTransactionPrice(listing.Price),
+            TaxAmount = tax.TaxAmount,
+            SellerPayout = tax.SellerPayout,
+            Timestamp = DateTime.UtcNow
+        });
 
         await _context.SaveChangesAsync();
-        await NotifyAsync("market", "listing-sold", buyerId, new { listingId, sellerId = seller.Id, listing.ItemId });
+        await NotifyAsync("market", "listing-sold", buyerId, new { listingId, sellerId = seller.Id, listing.ItemId, tax.TaxAmount, tax.SellerPayout });
     }
+
+    private async Task EnsureItemIsSellableFromInventoryAsync(Guid userId, Guid itemId)
+    {
+        var exists = await _context.InventoryItems.AnyAsync(x => x.UserId == userId && x.ItemId == itemId);
+        if (!exists)
+            throw new InvalidOperationException("Item not in inventory.");
+
+        if (await IsEquippedAsync(userId, itemId))
+            throw new InvalidOperationException("Unequip item before selling it to the bot.");
+    }
+
+    private async Task<bool> IsEquippedAsync(Guid userId, Guid itemId)
+    {
+        var equipment = await _context.Equipments.FirstOrDefaultAsync(x => x.UserId == userId);
+        if (equipment == null)
+            return false;
+
+        return new[]
+        {
+            equipment.HeadId, equipment.BodyId, equipment.GlovesId, equipment.LegsId, equipment.BootsId,
+            equipment.WeaponSlot1Id, equipment.WeaponSlot2Id, equipment.WeaponSlot3Id, equipment.WeaponSlot4Id
+        }.Any(x => x == itemId);
+    }
+
+    private async Task<Item?> LoadItemAsync(Guid itemId)
+    {
+        return await _context.Weapons.Include(x => x.Elements).FirstOrDefaultAsync(x => x.Id == itemId)
+               ?? (Item?)await _context.Armors.Include(x => x.Elements).FirstOrDefaultAsync(x => x.Id == itemId);
+    }
+
+    private BotSaleOfferDTO CreateBotSaleOffer(Item item)
+    {
+        var settings = GetEconomySettings();
+        var score = item switch
+        {
+            Weapon weapon => (decimal)(weapon.Cut + weapon.Blunt) + CalculateElementScore(weapon.Elements),
+            Armor armor => (decimal)(armor.CutResistance + armor.BluntResistance) + CalculateElementScore(armor.Elements),
+            _ => 0m
+        };
+        var price = Math.Max(1m, Math.Round(settings.BotBasePrice + score * settings.BotStatMultiplier, 0, MidpointRounding.AwayFromZero));
+        var tax = CalculateSaleTax(price, settings.IsPlayerToBotTaxEnabled);
+
+        return new BotSaleOfferDTO
+        {
+            ItemId = item.Id,
+            ItemName = item.Name,
+            Category = item.Category,
+            StatScore = Math.Round(score, 2, MidpointRounding.AwayFromZero),
+            OfferedPrice = price,
+            TaxAmount = tax.TaxAmount,
+            SellerPayout = tax.SellerPayout
+        };
+    }
+
+    private decimal CalculateElementScore(IEnumerable<ItemElement> elements)
+        => elements.Sum(x => (decimal)x.Value * GetEconomySettings().BotElementMultiplier);
+
+    private EconomySettings GetEconomySettings()
+    {
+        var serialized = _context.AdminLogs
+            .Where(x => x.Action == "UPDATE_MARKETPLACE_ECONOMY" && x.Data != null)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => x.Data)
+            .FirstOrDefault();
+
+        if (!string.IsNullOrWhiteSpace(serialized))
+        {
+            var dto = System.Text.Json.JsonSerializer.Deserialize<UpdateMarketplaceEconomyDTO>(serialized);
+            if (dto != null)
+                return NormalizeSettings(new EconomySettings
+                {
+                    DailyCurrencyReward = dto.DailyCurrencyReward,
+                    BotBasePrice = dto.BotBasePrice,
+                    BotStatMultiplier = dto.BotStatMultiplier,
+                    BotElementMultiplier = dto.BotElementMultiplier,
+                    IsPlayerToPlayerTaxEnabled = dto.IsPlayerToPlayerTaxEnabled,
+                    IsPlayerToBotTaxEnabled = dto.IsPlayerToBotTaxEnabled,
+                    ProgressiveTaxBrackets = dto.ProgressiveTaxBrackets.Select(x => new EconomyTaxBracket { From = x.From, To = x.To, Rate = x.Rate }).ToList()
+                });
+        }
+
+        return NormalizeSettings(new EconomySettings
+        {
+            DailyCurrencyReward = _economyOptions.DailyCurrencyReward,
+            BotBasePrice = _economyOptions.BotBasePrice,
+            BotStatMultiplier = _economyOptions.BotStatMultiplier,
+            BotElementMultiplier = _economyOptions.BotElementMultiplier,
+            IsPlayerToPlayerTaxEnabled = _economyOptions.IsPlayerToPlayerTaxEnabled,
+            IsPlayerToBotTaxEnabled = _economyOptions.IsPlayerToBotTaxEnabled,
+            ProgressiveTaxBrackets = _economyOptions.ProgressiveTaxBrackets.Select(x => new EconomyTaxBracket { From = x.From, To = x.To, Rate = x.Rate }).ToList()
+        });
+    }
+
+    private static EconomySettings NormalizeSettings(EconomySettings settings)
+    {
+        settings.ProgressiveTaxBrackets = settings.ProgressiveTaxBrackets
+            .Where(x => x.Rate >= 0 && (!x.To.HasValue || x.To.Value > x.From))
+            .OrderBy(x => x.From)
+            .ToList();
+        return settings;
+    }
+
+    private static decimal CalculateBracketTax(decimal grossPrice, EconomyTaxBracket bracket)
+    {
+        if (grossPrice <= bracket.From)
+            return 0m;
+
+        var upper = bracket.To ?? grossPrice;
+        var taxable = Math.Min(grossPrice, upper) - bracket.From;
+        return taxable * bracket.Rate;
+    }
+
+    private static int DecimalToTransactionPrice(decimal price)
+        => (int)Math.Round(price, 0, MidpointRounding.AwayFromZero);
+
     private bool PassWeaponFilters(WeaponQueryDTO q, MarketListing l, Weapon w)
     {
         if (!string.IsNullOrWhiteSpace(q.Search) &&
@@ -657,4 +984,22 @@ public class MarketplaceService : IMarketplaceService
 
     private Task NotifyAsync(string domain, string action, Guid userId, object? data = null)
         => _realtimeNotifier?.AppChangedAsync(domain, action, userId, data) ?? Task.CompletedTask;
+
+    private sealed class EconomySettings
+    {
+        public decimal DailyCurrencyReward { get; set; }
+        public decimal BotBasePrice { get; set; }
+        public decimal BotStatMultiplier { get; set; }
+        public decimal BotElementMultiplier { get; set; }
+        public bool IsPlayerToPlayerTaxEnabled { get; set; }
+        public bool IsPlayerToBotTaxEnabled { get; set; }
+        public List<EconomyTaxBracket> ProgressiveTaxBrackets { get; set; } = new();
+    }
+
+    private sealed class EconomyTaxBracket
+    {
+        public decimal From { get; set; }
+        public decimal? To { get; set; }
+        public decimal Rate { get; set; }
+    }
 }

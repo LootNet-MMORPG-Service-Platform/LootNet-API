@@ -1,4 +1,5 @@
 using System.Text;
+using LootNet_API.Configuration;
 using LootNet_API.Data;
 using LootNet_API.Hubs;
 using LootNet_API.Services;
@@ -55,8 +56,9 @@ namespace LootNet_API
                 };
             });
             builder.Services.AddScoped<ITokenService, TokenService>();
-            builder.Services.AddScoped<IMarketplaceService, MarketplaceService>();
+            builder.Services.Configure<MarketplaceEconomyOptions>(builder.Configuration.GetSection("MarketplaceEconomy"));
             builder.Services.AddScoped<IItemGenerationService, ItemGenerationService>();
+            builder.Services.AddScoped<IMarketplaceService, MarketplaceService>();
             builder.Services.AddScoped<IItemNameGenerator, ItemNameGenerator>();
             builder.Services.AddScoped<IInventoryService, InventoryService>();
             builder.Services.AddScoped<IEnemyGenerationService, EnemyGenerationService>();

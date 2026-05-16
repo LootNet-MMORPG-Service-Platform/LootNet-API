@@ -78,4 +78,30 @@ public class AdminController : ControllerBase
         await _service.ChangeRoleAsync(adminId, id, dto.Role);
         return Ok();
     }
+
+    [HttpGet("market/economy")]
+    public async Task<IActionResult> GetMarketplaceEconomy()
+        => Ok(await _service.GetMarketplaceEconomyAsync());
+
+    [HttpPut("market/economy")]
+    public async Task<IActionResult> UpdateMarketplaceEconomy(UpdateMarketplaceEconomyDTO dto)
+    {
+        try
+        {
+            var adminId = User.GetUserId();
+            return Ok(await _service.UpdateMarketplaceEconomyAsync(adminId, dto));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("market/stats")]
+    public async Task<IActionResult> GetMarketplaceEconomyStats()
+        => Ok(await _service.GetMarketplaceEconomyStatsAsync());
+
+    [HttpGet("logs")]
+    public async Task<IActionResult> GetLogs([FromQuery] AdminLogsQueryDTO query)
+        => Ok(await _service.GetAdminLogsAsync(query));
 }
