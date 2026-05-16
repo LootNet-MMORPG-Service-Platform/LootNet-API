@@ -487,13 +487,12 @@ public class MarketplaceService : IMarketplaceService
 
     public async Task<BotSaleResultDTO> SellItemToBotAsync(Guid userId, Guid itemId)
     {
+        await EnsureItemIsSellableFromInventoryAsync(userId, itemId);
+
         var inventoryItem = await _context.InventoryItems
             .FirstOrDefaultAsync(x => x.UserId == userId && x.ItemId == itemId);
         if (inventoryItem == null)
             throw new InvalidOperationException("Item not in inventory.");
-
-        if (await IsEquippedAsync(userId, itemId))
-            throw new InvalidOperationException("Unequip item before selling it to the bot.");
 
         var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == userId);
         if (user == null)
@@ -636,6 +635,8 @@ public class MarketplaceService : IMarketplaceService
         if (dto.Price <= 0)
             throw new InvalidOperationException("Price must be greater than 0.");
 
+        await EnsureItemIsSellableFromInventoryAsync(userId, dto.ItemId);
+
         var inventoryItem = await _context.InventoryItems
             .FirstOrDefaultAsync(x => x.UserId == userId && x.ItemId == dto.ItemId);
         if (inventoryItem == null)
@@ -719,7 +720,7 @@ public class MarketplaceService : IMarketplaceService
             throw new InvalidOperationException("Item not in inventory.");
 
         if (await IsEquippedAsync(userId, itemId))
-            throw new InvalidOperationException("Unequip item before selling it to the bot.");
+            throw new InvalidOperationException("Unequip item before selling it.");
     }
 
     private async Task<bool> IsEquippedAsync(Guid userId, Guid itemId)
@@ -806,10 +807,38 @@ public class MarketplaceService : IMarketplaceService
 
     private static EconomySettings NormalizeSettings(EconomySettings settings)
     {
-        settings.ProgressiveTaxBrackets = settings.ProgressiveTaxBrackets
+        var normalized = settings.ProgressiveTaxBrackets
             .Where(x => x.Rate >= 0 && (!x.To.HasValue || x.To.Value > x.From))
             .OrderBy(x => x.From)
+            .ThenBy(x => x.To ?? decimal.MaxValue)
+            .ThenBy(x => x.Rate)
+            .Select(x => new EconomyTaxBracket
+            {
+                From = Math.Round(x.From, 2, MidpointRounding.AwayFromZero),
+                To = x.To.HasValue ? Math.Round(x.To.Value, 2, MidpointRounding.AwayFromZero) : null,
+                Rate = Math.Round(x.Rate, 6, MidpointRounding.AwayFromZero)
+            })
+            .GroupBy(x => new { x.From, x.To, x.Rate })
+            .Select(x => x.First())
             .ToList();
+
+        var nonOverlapping = new List<EconomyTaxBracket>();
+        foreach (var bracket in normalized)
+        {
+            if (nonOverlapping.Count == 0)
+            {
+                nonOverlapping.Add(bracket);
+                continue;
+            }
+
+            var prev = nonOverlapping[^1];
+            if (!prev.To.HasValue || bracket.From < prev.To.Value)
+                continue;
+
+            nonOverlapping.Add(bracket);
+        }
+
+        settings.ProgressiveTaxBrackets = nonOverlapping;
         return settings;
     }
 

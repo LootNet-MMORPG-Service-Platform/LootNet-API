@@ -7,6 +7,7 @@ using LootNet_API.DTO.Items;
 using LootNet_API.Enums;
 using LootNet_API.Models;
 using LootNet_API.Models.Items;
+using LootNet_API.Models.Logs;
 using LootNet_API.Models.Market;
 using LootNet_API.Services;
 using LootNet_API.Tests.Helpers;
@@ -696,5 +697,97 @@ public class MarketplaceServiceTests
         var service = CreateService(db, factory);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.SellItemToBotAsync(user.Id, weapon.Id));
+    }
+
+    [Fact]
+    public async Task CreateListing_Throws_WhenItemIsEquipped()
+    {
+        var (db, factory) = Create();
+        var user = CreateUser();
+        var weapon = new Weapon { Id = Guid.NewGuid(), Name = "Sword", Category = ItemCategory.Weapon };
+        user.Equipment.WeaponSlot1Id = weapon.Id;
+        db.Users.Add(user);
+        db.Weapons.Add(weapon);
+        AddInventory(db, user.Id, weapon.Id);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, factory);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateListingAsync(user.Id, new CreateMarketListingDTO { ItemId = weapon.Id, Price = 100 }));
+    }
+
+    [Fact]
+    public void GetEconomy_DeduplicatesProgressiveTaxBrackets_FromAdminSettings()
+    {
+        var (db, factory) = Create();
+        db.AdminLogs.Add(new AdminLog
+        {
+            Id = Guid.NewGuid(),
+            AdminId = Guid.NewGuid(),
+            Action = "UPDATE_MARKETPLACE_ECONOMY",
+            TargetUserId = Guid.NewGuid().ToString(),
+            Data = """
+            {
+              "dailyCurrencyReward": 10,
+              "botBasePrice": 50,
+              "botStatMultiplier": 2,
+              "botElementMultiplier": 1,
+              "isPlayerToPlayerTaxEnabled": true,
+              "isPlayerToBotTaxEnabled": true,
+              "progressiveTaxBrackets": [
+                { "from": 0, "to": 500, "rate": 0.10 },
+                { "from": 0, "to": 500, "rate": 0.10 },
+                { "from": 500, "to": null, "rate": 0.20 }
+              ]
+            }
+            """
+        });
+        db.SaveChanges();
+
+        var service = CreateService(db, factory);
+        var economy = service.GetEconomy();
+
+        Assert.Equal(2, economy.ProgressiveTaxBrackets.Count);
+        Assert.Equal(0, economy.ProgressiveTaxBrackets[0].From);
+        Assert.Equal(500, economy.ProgressiveTaxBrackets[0].To);
+        Assert.Equal(500, economy.ProgressiveTaxBrackets[1].From);
+        Assert.Null(economy.ProgressiveTaxBrackets[1].To);
+    }
+
+    [Fact]
+    public void CalculateSaleTax_DoesNotDoubleCount_OverlappingDuplicateBrackets()
+    {
+        var (db, factory) = Create();
+        db.AdminLogs.Add(new AdminLog
+        {
+            Id = Guid.NewGuid(),
+            AdminId = Guid.NewGuid(),
+            Action = "UPDATE_MARKETPLACE_ECONOMY",
+            TargetUserId = Guid.NewGuid().ToString(),
+            Data = """
+            {
+              "dailyCurrencyReward": 10,
+              "botBasePrice": 50,
+              "botStatMultiplier": 2,
+              "botElementMultiplier": 1,
+              "isPlayerToPlayerTaxEnabled": true,
+              "isPlayerToBotTaxEnabled": true,
+              "progressiveTaxBrackets": [
+                { "from": 0, "to": 500, "rate": 0.05 },
+                { "from": 0, "to": 500, "rate": 0.0500000 },
+                { "from": 500, "to": 2000, "rate": 0.10 }
+              ]
+            }
+            """
+        });
+        db.SaveChanges();
+
+        var service = CreateService(db, factory);
+        var tax = service.CalculateSaleTax(500);
+
+        Assert.Equal(25, tax.TaxAmount);
+        Assert.Equal(475, tax.SellerPayout);
+        Assert.Equal(0.05m, tax.EffectiveTaxRate);
     }
 }

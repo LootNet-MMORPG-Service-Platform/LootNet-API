@@ -340,6 +340,20 @@ public class AdminService : IAdminService
 
     private static EconomySettings ToSettings(UpdateMarketplaceEconomyDTO dto)
     {
+        var normalizedBrackets = dto.ProgressiveTaxBrackets
+            .OrderBy(x => x.From)
+            .ThenBy(x => x.To ?? decimal.MaxValue)
+            .ThenBy(x => x.Rate)
+            .Select(x => new MarketTaxBracketDTO
+            {
+                From = Math.Round(x.From, 2, MidpointRounding.AwayFromZero),
+                To = x.To.HasValue ? Math.Round(x.To.Value, 2, MidpointRounding.AwayFromZero) : null,
+                Rate = Math.Round(x.Rate, 6, MidpointRounding.AwayFromZero)
+            })
+            .GroupBy(x => new { x.From, x.To, x.Rate })
+            .Select(x => x.First())
+            .ToList();
+
         return new EconomySettings
         {
             DailyCurrencyReward = dto.DailyCurrencyReward,
@@ -348,7 +362,7 @@ public class AdminService : IAdminService
             BotElementMultiplier = dto.BotElementMultiplier,
             IsPlayerToPlayerTaxEnabled = dto.IsPlayerToPlayerTaxEnabled,
             IsPlayerToBotTaxEnabled = dto.IsPlayerToBotTaxEnabled,
-            ProgressiveTaxBrackets = dto.ProgressiveTaxBrackets.OrderBy(x => x.From).ToList()
+            ProgressiveTaxBrackets = normalizedBrackets
         };
     }
 
@@ -387,12 +401,20 @@ public class AdminService : IAdminService
         if (dto.ProgressiveTaxBrackets.Count == 0)
             throw new InvalidOperationException("At least one tax bracket is required.");
 
-        foreach (var bracket in dto.ProgressiveTaxBrackets)
+        var ordered = dto.ProgressiveTaxBrackets.OrderBy(x => x.From).ToList();
+        for (var i = 0; i < ordered.Count; i++)
         {
+            var bracket = ordered[i];
             if (bracket.From < 0 || bracket.Rate < 0 || bracket.Rate > 1)
                 throw new InvalidOperationException("Invalid tax bracket.");
             if (bracket.To.HasValue && bracket.To.Value <= bracket.From)
                 throw new InvalidOperationException("Tax bracket upper bound must be greater than lower bound.");
+            if (i > 0)
+            {
+                var prev = ordered[i - 1];
+                if (!prev.To.HasValue || bracket.From < prev.To.Value)
+                    throw new InvalidOperationException("Tax brackets cannot overlap and must be ordered by ascending ranges.");
+            }
         }
     }
 
