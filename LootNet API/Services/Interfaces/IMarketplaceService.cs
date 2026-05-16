@@ -1,4 +1,5 @@
-﻿using LootNet_API.DTO;
+using LootNet_API.DTO;
+using LootNet_API.DTO.Market;
 using LootNet_API.Enums;
 using LootNet_API.Models.Market;
 
@@ -17,7 +18,7 @@ public interface IMarketplaceService
     MarketSaleTaxDTO CalculateSaleTax(decimal grossPrice);
     Task<BotSaleOfferDTO> GetBotSaleOfferAsync(Guid userId, Guid itemId);
     Task<BotSaleResultDTO> SellItemToBotAsync(Guid userId, Guid itemId);
-    Task<LootNet_API.DTO.Items.ItemRewardDTO> ClaimWebDailyAsync(Guid userId);
+    Task<WebDailyRewardDTO> ClaimWebDailyAsync(Guid userId);
     Task ChangeListingPriceAsync(Guid userId, Guid listingId, decimal price);
     Task CancelListingAsync(Guid userId, Guid listingId);
     Task<MarketListing> CreateListingAsync(Guid userId, CreateMarketListingDTO dto);

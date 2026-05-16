@@ -5,6 +5,7 @@ using LootNet_API.Data;
 using LootNet_API.DTO;
 using LootNet_API.DTO.Admin;
 using LootNet_API.DTO.Items;
+using LootNet_API.DTO.Market;
 using LootNet_API.Enums;
 using LootNet_API.Models;
 using LootNet_API.Models.Items;
@@ -541,11 +542,8 @@ public class MarketplaceService : IMarketplaceService
         };
     }
 
-    public async Task<ItemRewardDTO> ClaimWebDailyAsync(Guid userId)
+    public async Task<WebDailyRewardDTO> ClaimWebDailyAsync(Guid userId)
     {
-        if (_itemGenerationService == null)
-            throw new InvalidOperationException("Daily reward service is not available.");
-
         var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == userId);
         if (user == null)
             throw new InvalidOperationException("User account not found. Log in again.");
@@ -558,24 +556,6 @@ public class MarketplaceService : IMarketplaceService
         if (claimedToday)
             throw new InvalidOperationException("Web daily already claimed.");
 
-        var item = await _itemGenerationService.GenerateItemAsync(userId);
-        switch (item)
-        {
-            case Weapon weapon:
-                _context.Weapons.Add(weapon);
-                break;
-            case Armor armor:
-                _context.Armors.Add(armor);
-                break;
-        }
-
-        _context.InventoryItems.Add(new InventoryItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            ItemId = item.Id
-        });
-
         var economy = GetEconomySettings();
         user.Currency += economy.DailyCurrencyReward;
         _context.AdminLogs.Add(new AdminLog
@@ -584,20 +564,13 @@ public class MarketplaceService : IMarketplaceService
             AdminId = userId,
             Action = "WEB_DAILY_CLAIMED",
             TargetUserId = userId.ToString(),
-            Data = System.Text.Json.JsonSerializer.Serialize(new { item.Id, item.Name, currencyReward = economy.DailyCurrencyReward })
+            Data = System.Text.Json.JsonSerializer.Serialize(new { currencyReward = economy.DailyCurrencyReward })
         });
 
         await _context.SaveChangesAsync();
-        await NotifyAsync("reward", "web-daily-claimed", userId, new { itemId = item.Id, item.Name, currencyReward = economy.DailyCurrencyReward });
+        await NotifyAsync("reward", "web-daily-claimed", userId, new { currencyReward = economy.DailyCurrencyReward });
 
-        return new ItemRewardDTO
-        {
-            Id = item.Id,
-            Name = item.Name,
-            Category = item.Category,
-            CurrencyReward = economy.DailyCurrencyReward,
-            CurrencyAfterReward = user.Currency
-        };
+        return new WebDailyRewardDTO { CurrencyReward = economy.DailyCurrencyReward, CurrencyAfterReward = user.Currency };
     }
 
     public async Task ChangeListingPriceAsync(Guid userId, Guid listingId, decimal price)

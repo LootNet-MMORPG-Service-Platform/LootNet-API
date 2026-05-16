@@ -729,16 +729,16 @@ public class MarketplaceServiceTests
             TargetUserId = Guid.NewGuid().ToString(),
             Data = """
             {
-              "dailyCurrencyReward": 10,
-              "botBasePrice": 50,
-              "botStatMultiplier": 2,
-              "botElementMultiplier": 1,
-              "isPlayerToPlayerTaxEnabled": true,
-              "isPlayerToBotTaxEnabled": true,
-              "progressiveTaxBrackets": [
-                { "from": 0, "to": 500, "rate": 0.10 },
-                { "from": 0, "to": 500, "rate": 0.10 },
-                { "from": 500, "to": null, "rate": 0.20 }
+              "DailyCurrencyReward": 10,
+              "BotBasePrice": 50,
+              "BotStatMultiplier": 2,
+              "BotElementMultiplier": 1,
+              "IsPlayerToPlayerTaxEnabled": true,
+              "IsPlayerToBotTaxEnabled": true,
+              "ProgressiveTaxBrackets": [
+                { "From": 0, "To": 500, "Rate": 0.10 },
+                { "From": 0, "To": 500, "Rate": 0.10 },
+                { "From": 500, "To": null, "Rate": 0.20 }
               ]
             }
             """
@@ -767,16 +767,16 @@ public class MarketplaceServiceTests
             TargetUserId = Guid.NewGuid().ToString(),
             Data = """
             {
-              "dailyCurrencyReward": 10,
-              "botBasePrice": 50,
-              "botStatMultiplier": 2,
-              "botElementMultiplier": 1,
-              "isPlayerToPlayerTaxEnabled": true,
-              "isPlayerToBotTaxEnabled": true,
-              "progressiveTaxBrackets": [
-                { "from": 0, "to": 500, "rate": 0.05 },
-                { "from": 0, "to": 500, "rate": 0.0500000 },
-                { "from": 500, "to": 2000, "rate": 0.10 }
+              "DailyCurrencyReward": 10,
+              "BotBasePrice": 50,
+              "BotStatMultiplier": 2,
+              "BotElementMultiplier": 1,
+              "IsPlayerToPlayerTaxEnabled": true,
+              "IsPlayerToBotTaxEnabled": true,
+              "ProgressiveTaxBrackets": [
+                { "From": 0, "To": 500, "Rate": 0.05 },
+                { "From": 0, "To": 500, "Rate": 0.0500000 },
+                { "From": 500, "To": 2000, "Rate": 0.10 }
               ]
             }
             """
