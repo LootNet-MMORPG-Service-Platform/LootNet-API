@@ -67,6 +67,29 @@ public class AdminService : IAdminService
         };
     }
 
+    public async Task<List<AdminUserListDTO>> GetAdminUsersAsync()
+    {
+        var allowedRoles = new[]
+        {
+            UserRole.SuperAdmin,
+            UserRole.Admin,
+            UserRole.GameModerator
+        };
+
+        return await _context.Users
+            .Where(x => allowedRoles.Contains(x.Role))
+            .OrderBy(x => x.Username)
+            .Select(x => new AdminUserListDTO
+            {
+                Id = x.Id,
+                Username = x.Username,
+                Role = x.Role,
+                Currency = x.Currency,
+                IsBlocked = x.IsBlocked
+            })
+            .ToListAsync();
+    }
+
     public async Task<AdminUserDetailsDTO> GetUserAsync(Guid id)
     {
         var user = await _context.Users.FirstAsync(x => x.Id == id);
@@ -245,11 +268,11 @@ public class AdminService : IAdminService
         var q = _context.AdminLogs.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(query.Action))
-            q = q.Where(x => x.Action == query.Action);
+            q = q.Where(x => x.Action.Contains(query.Action));
         if (query.AdminId.HasValue)
             q = q.Where(x => x.AdminId == query.AdminId.Value);
         if (!string.IsNullOrWhiteSpace(query.TargetUserId))
-            q = q.Where(x => x.TargetUserId == query.TargetUserId);
+            q = q.Where(x => x.TargetUserId.Contains(query.TargetUserId));
 
         var total = await q.CountAsync();
         var items = await q

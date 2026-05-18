@@ -22,6 +22,10 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> GetUsers([FromQuery] GetUsersQueryDTO query)
         => Ok(await _service.GetUsersAsync(query));
 
+    [HttpGet("users/admins")]
+    public async Task<IActionResult> GetAdminUsers()
+        => Ok(await _service.GetAdminUsersAsync());
+
     [HttpGet("users/{id}")]
     public async Task<IActionResult> GetUser(Guid id)
         => Ok(await _service.GetUserAsync(id));

@@ -9,6 +9,8 @@ public interface IAdminService
 {
     Task<PagedResultDTO<AdminUserListDTO>> GetUsersAsync(GetUsersQueryDTO query);
 
+    Task<List<AdminUserListDTO>> GetAdminUsersAsync();
+
     Task<AdminUserDetailsDTO> GetUserAsync(Guid id);
 
     Task BlockUserAsync(Guid adminId, Guid userId, string reason, int? days);

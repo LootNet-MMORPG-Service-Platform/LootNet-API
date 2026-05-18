@@ -140,6 +140,94 @@ public class AdminServiceTests
     }
 
     [Fact]
+    public async Task GetAdminUsers_ReturnsOnlyAdministrativeRoles()
+    {
+        using var db = CreateDb();
+
+        db.Users.AddRange(
+            new User { Id = Guid.NewGuid(), Username = "player", PasswordHash = "h", Role = UserRole.Player, Currency = 10, Equipment = new Equipment() },
+            new User { Id = Guid.NewGuid(), Username = "admin", PasswordHash = "h", Role = UserRole.Admin, Currency = 20, Equipment = new Equipment() },
+            new User { Id = Guid.NewGuid(), Username = "super", PasswordHash = "h", Role = UserRole.SuperAdmin, Currency = 30, Equipment = new Equipment() },
+            new User { Id = Guid.NewGuid(), Username = "moderator", PasswordHash = "h", Role = UserRole.GameModerator, Currency = 40, Equipment = new Equipment() }
+        );
+        await db.SaveChangesAsync();
+
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
+
+        var result = await service.GetAdminUsersAsync();
+
+        Assert.Equal(3, result.Count);
+        Assert.DoesNotContain(result, x => x.Role == UserRole.Player);
+        Assert.Contains(result, x => x.Role == UserRole.Admin);
+        Assert.Contains(result, x => x.Role == UserRole.SuperAdmin);
+        Assert.Contains(result, x => x.Role == UserRole.GameModerator);
+    }
+
+    [Fact]
+    public async Task GetAdminUsers_MapsAdminUserListFields()
+    {
+        using var db = CreateDb();
+        var adminId = Guid.NewGuid();
+
+        db.Users.Add(new User
+        {
+            Id = adminId,
+            Username = "admin",
+            PasswordHash = "h",
+            Role = UserRole.Admin,
+            Currency = 999,
+            Equipment = new Equipment(),
+            IsBlocked = true
+        });
+        await db.SaveChangesAsync();
+
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
+
+        var result = await service.GetAdminUsersAsync();
+
+        var item = Assert.Single(result);
+        Assert.Equal(adminId, item.Id);
+        Assert.Equal("admin", item.Username);
+        Assert.Equal(UserRole.Admin, item.Role);
+        Assert.Equal(999, item.Currency);
+        Assert.True(item.IsBlocked);
+    }
+
+    [Fact]
+    public async Task GetAdminUsers_SortsByUsernameAscending()
+    {
+        using var db = CreateDb();
+
+        db.Users.AddRange(
+            new User { Id = Guid.NewGuid(), Username = "zeta", PasswordHash = "h", Role = UserRole.Admin, Equipment = new Equipment() },
+            new User { Id = Guid.NewGuid(), Username = "alpha", PasswordHash = "h", Role = UserRole.SuperAdmin, Equipment = new Equipment() },
+            new User { Id = Guid.NewGuid(), Username = "gamma", PasswordHash = "h", Role = UserRole.GameModerator, Equipment = new Equipment() }
+        );
+        await db.SaveChangesAsync();
+
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
+
+        var result = await service.GetAdminUsersAsync();
+
+        Assert.Equal(new[] { "alpha", "gamma", "zeta" }, result.Select(x => x.Username));
+    }
+
+    [Fact]
+    public async Task GetAdminUsers_ReturnsEmpty_WhenNoAdministrativeUsersExist()
+    {
+        using var db = CreateDb();
+
+        db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player", PasswordHash = "h", Role = UserRole.Player, Equipment = new Equipment() });
+        await db.SaveChangesAsync();
+
+        var service = new AdminService(db, CreateInventoryStub(), CreateEquipmentStub());
+
+        var result = await service.GetAdminUsersAsync();
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
     public async Task GetUser_ReturnsUserDetails()
     {
         using var db = CreateDb();
