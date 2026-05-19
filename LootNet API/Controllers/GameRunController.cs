@@ -8,6 +8,7 @@ namespace LootNet_API.Controllers;
 
 [ApiController]
 [Route("api/run")]
+[Authorize]
 public class GameRunController : ControllerBase
 {
     private readonly IGameRunService _service;

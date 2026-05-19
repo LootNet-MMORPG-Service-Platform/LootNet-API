@@ -1,4 +1,4 @@
-﻿using LootNet_API.Enums;
+using LootNet_API.Enums;
 
 namespace LootNet_API.DTO.Generation.Create;
 
@@ -9,3 +9,4 @@ public class CreateRuleDTO
     public ArmorType? ArmorType { get; set; }
     public bool IsFallback { get; set; }
 }
+
