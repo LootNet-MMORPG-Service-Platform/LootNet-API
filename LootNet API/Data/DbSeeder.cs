@@ -453,6 +453,8 @@ public static class DbSeeder
             {
                 Id = Guid.NewGuid(),
                 Username = $"Player{i}",
+                Email = $"player{i}@lootnet.local",
+                EmailVerified = true,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword($"player{i}"),
                 Role = UserRole.Player,
                 ProfileId = defaultProfileId,
@@ -468,9 +470,9 @@ public static class DbSeeder
 
         users.AddRange(
         [
-            new User { Id = Guid.NewGuid(), Username = "GameModerator", PasswordHash = BCrypt.Net.BCrypt.HashPassword("moderator"), Role = UserRole.GameModerator, ProfileId = defaultProfileId, Currency = 3000, Equipment = new Equipment() },
-            new User { Id = Guid.NewGuid(), Username = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"), Role = UserRole.Admin, ProfileId = defaultProfileId, Currency = 6000, Equipment = new Equipment() },
-            new User { Id = Guid.NewGuid(), Username = "SuperAdmin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("superadmin"), Role = UserRole.SuperAdmin, ProfileId = defaultProfileId, Currency = 12000, Equipment = new Equipment() }
+            new User { Id = Guid.NewGuid(), Username = "GameModerator", Email = "gamemoderator@lootnet.local", EmailVerified = true, PasswordHash = BCrypt.Net.BCrypt.HashPassword("moderator"), Role = UserRole.GameModerator, ProfileId = defaultProfileId, Currency = 3000, Equipment = new Equipment() },
+            new User { Id = Guid.NewGuid(), Username = "Admin", Email = "admin@lootnet.local", EmailVerified = true, PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"), Role = UserRole.Admin, ProfileId = defaultProfileId, Currency = 6000, Equipment = new Equipment() },
+            new User { Id = Guid.NewGuid(), Username = "SuperAdmin", Email = "superadmin@lootnet.local", EmailVerified = true, PasswordHash = BCrypt.Net.BCrypt.HashPassword("superadmin"), Role = UserRole.SuperAdmin, ProfileId = defaultProfileId, Currency = 12000, Equipment = new Equipment() }
         ]);
 
         return users;

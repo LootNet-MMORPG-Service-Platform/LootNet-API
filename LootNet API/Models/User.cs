@@ -8,6 +8,10 @@ public class User
 {
     public Guid Id { get; set; }
     public required string Username { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public bool EmailVerified { get; set; }
+    public string? EmailVerificationTokenHash { get; set; }
+    public DateTime? EmailVerificationTokenExpiresAt { get; set; }
     public required string PasswordHash { get; set; }
     public UserRole Role { get; set; }
 

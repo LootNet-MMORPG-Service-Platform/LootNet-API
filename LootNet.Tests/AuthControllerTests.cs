@@ -1,4 +1,4 @@
-﻿namespace LootNet_API.Tests;
+namespace LootNet_API.Tests;
 
 using System;
 using System.Collections.Generic;
@@ -16,55 +16,60 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Newtonsoft.Json.Linq;
 using Xunit;
 
 public class AuthControllerTests
 {
     private readonly AppDbContext _db;
-    private readonly IConfiguration _config;
     private readonly TokenService _tokenService;
     private readonly AuthController _controller;
-    private readonly IRealtimeNotifier _realtimeNotifier;
+    private readonly FakeEmailSender _emailSender;
 
     public AuthControllerTests()
     {
         _db = TestDbContextFactory.Create();
 
-        var inMemorySettings = new Dictionary<string, string>
+        var inMemorySettings = new Dictionary<string, string?>
         {
             {"Jwt:Key", "SuperSecretKey12345678901234567890"},
             {"Jwt:Issuer", "TestIssuer"},
             {"Jwt:Audience", "TestAudience"},
             {"Jwt:AccessTokenMinutes", "60"},
-            {"Jwt:RefreshTokenDays", "7"}
+            {"Jwt:RefreshTokenDays", "7"},
+            {"App:PublicBaseUrl", "https://lootnet-api.test"}
         };
 
-        _config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
-        _tokenService = new TokenService(_db, _config);
-        _realtimeNotifier = new FakeRealtimeNotifier();
-        _controller = new AuthController(_db, _config, _tokenService, _realtimeNotifier);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
+        _tokenService = new TokenService(_db, config);
+        _emailSender = new FakeEmailSender();
+        var authService = new AuthService(_db, config, _tokenService, new FakeRealtimeNotifier(), _emailSender);
+        _controller = new AuthController(authService);
     }
 
     [Fact]
     public async Task Register_CreatesUser_WhenNew()
     {
-        var dto = new RegisterDTO { Username = "player1", Password = "password" };
+        var dto = new RegisterDTO { Username = "player1", Email = "player1@example.com", Password = "password" };
 
         var result = await _controller.Register(dto);
 
-        Assert.IsType<OkResult>(result);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal("Registration successful. Check your email to verify account.", ok.Value);
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == "player1");
         Assert.NotNull(user);
+        Assert.Equal("player1@example.com", user.Email);
+        Assert.False(user.EmailVerified);
+        Assert.NotNull(user.EmailVerificationTokenHash);
+        Assert.Equal("player1@example.com", _emailSender.LastEmail);
     }
 
     [Fact]
     public async Task Register_Fails_WhenUserExists()
     {
-        _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = "hash", Equipment = new Equipment() });
+        _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", Email = "player1@example.com", PasswordHash = "hash", Equipment = new Equipment() });
         await _db.SaveChangesAsync();
 
-        var dto = new RegisterDTO { Username = "player1", Password = "password" };
+        var dto = new RegisterDTO { Username = "player1", Email = "other@example.com", Password = "password" };
         var result = await _controller.Register(dto);
 
         var bad = Assert.IsType<BadRequestObjectResult>(result);
@@ -72,15 +77,24 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task Login_ReturnsTokens_WhenValid()
+    public async Task Login_ReturnsTokens_WhenValidAndEmailVerified()
     {
         var hash = BCrypt.Net.BCrypt.HashPassword("password");
-        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = hash, Role = UserRole.Player, Equipment = new Equipment() };
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "player1",
+            Email = "player1@example.com",
+            EmailVerified = true,
+            PasswordHash = hash,
+            Role = UserRole.Player,
+            Equipment = new Equipment()
+        };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
         var dto = new LoginDTO { Username = "player1", Password = "password" };
-        var result = _controller.Login(dto);
+        var result = await _controller.Login(dto);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var obj = Assert.IsType<AuthResponseDTO>(ok.Value);
@@ -89,14 +103,29 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public void Login_Fails_WhenWrongPassword()
+    public async Task Login_Fails_WhenEmailNotVerified()
     {
         var hash = BCrypt.Net.BCrypt.HashPassword("password");
-        _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = hash, Role = UserRole.Player, Equipment = new Equipment() });
-        _db.SaveChanges();
+        _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", Email = "player1@example.com", PasswordHash = hash, Role = UserRole.Player, Equipment = new Equipment() });
+        await _db.SaveChangesAsync();
+
+        var dto = new LoginDTO { Username = "player1", Password = "password" };
+        var result = await _controller.Login(dto);
+
+        var forbidden = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, forbidden.StatusCode);
+        Assert.Equal("Email is not verified.", forbidden.Value);
+    }
+
+    [Fact]
+    public async Task Login_Fails_WhenWrongPassword()
+    {
+        var hash = BCrypt.Net.BCrypt.HashPassword("password");
+        _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", Email = "player1@example.com", EmailVerified = true, PasswordHash = hash, Role = UserRole.Player, Equipment = new Equipment() });
+        await _db.SaveChangesAsync();
 
         var dto = new LoginDTO { Username = "player1", Password = "wrong" };
-        var result = _controller.Login(dto);
+        var result = await _controller.Login(dto);
 
         var unauthorized = Assert.IsType<UnauthorizedObjectResult>(result);
         Assert.Equal("Invalid username or password.", unauthorized.Value);
@@ -105,7 +134,7 @@ public class AuthControllerTests
     [Fact]
     public async Task Refresh_ReturnsNewTokens_WhenValid()
     {
-        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = "hash", Role = UserRole.Player, Equipment = new Equipment() };
+        var user = new User { Id = Guid.NewGuid(), Username = "player1", Email = "player1@example.com", EmailVerified = true, PasswordHash = "hash", Role = UserRole.Player, Equipment = new Equipment() };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -131,7 +160,7 @@ public class AuthControllerTests
     [Fact]
     public async Task Logout_RevokesRefreshToken()
     {
-        var user = new User { Id = Guid.NewGuid(), Username = "player1", PasswordHash = "hash", Role = UserRole.Player, Equipment = new Equipment() };
+        var user = new User { Id = Guid.NewGuid(), Username = "player1", Email = "player1@example.com", EmailVerified = true, PasswordHash = "hash", Role = UserRole.Player, Equipment = new Equipment() };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -142,20 +171,27 @@ public class AuthControllerTests
         Assert.IsType<OkResult>(result);
 
         var dbToken = await _db.RefreshTokens.FindAsync(refresh.Id);
-        Assert.True(dbToken.IsRevoked);
+        Assert.True(dbToken!.IsRevoked);
     }
 
     [Fact]
     public async Task ResetPassword_Succeeds_WhenOldPasswordCorrect()
     {
-        var user = new User { Id = Guid.NewGuid(), Username = "player1",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldpass"), Equipment = new Equipment() };
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "player1",
+            Email = "player1@example.com",
+            EmailVerified = true,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldpass"),
+            Equipment = new Equipment()
+        };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
         var dto = new ResetPasswordDTO { OldPassword = "oldpass", NewPassword = "newpass" };
 
-        var claims = new ClaimsPrincipal(new ClaimsIdentity(new Claim[] { new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()) }));
+        var claims = new ClaimsPrincipal(new ClaimsIdentity(new Claim[] { new(ClaimTypes.NameIdentifier, user.Id.ToString()) }));
         _controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = claims } };
 
         var result = await _controller.ResetPassword(dto);
@@ -163,20 +199,27 @@ public class AuthControllerTests
         Assert.Equal("Password changed", ok.Value);
 
         var updated = await _db.Users.FindAsync(user.Id);
-        Assert.True(BCrypt.Net.BCrypt.Verify("newpass", updated.PasswordHash));
+        Assert.True(BCrypt.Net.BCrypt.Verify("newpass", updated!.PasswordHash));
     }
 
     [Fact]
     public async Task ResetPassword_Fails_WhenOldPasswordWrong()
     {
-        var user = new User { Id = Guid.NewGuid(), Username = "player1",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldpass"), Equipment = new Equipment() };
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "player1",
+            Email = "player1@example.com",
+            EmailVerified = true,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldpass"),
+            Equipment = new Equipment()
+        };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
         var dto = new ResetPasswordDTO { OldPassword = "wrong", NewPassword = "newpass" };
 
-        var claims = new ClaimsPrincipal(new ClaimsIdentity(new Claim[] { new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()) }));
+        var claims = new ClaimsPrincipal(new ClaimsIdentity(new Claim[] { new(ClaimTypes.NameIdentifier, user.Id.ToString()) }));
         _controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = claims } };
 
         var result = await _controller.ResetPassword(dto);
@@ -188,5 +231,16 @@ public class AuthControllerTests
     {
         public Task AppChangedAsync(string domain, string action, Guid? userId = null, object? data = null)
             => Task.CompletedTask;
+    }
+
+    private class FakeEmailSender : IEmailSender
+    {
+        public string? LastEmail { get; private set; }
+
+        public Task SendEmailVerificationAsync(string email, string username, string verificationUrl)
+        {
+            LastEmail = email;
+            return Task.CompletedTask;
+        }
     }
 }

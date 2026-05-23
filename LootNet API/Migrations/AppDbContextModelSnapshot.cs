@@ -717,6 +717,19 @@ namespace LootNet_API.Migrations
                     b.Property<decimal>("Currency")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("EmailVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("EmailVerificationTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EmailVerificationTokenHash")
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsBlocked")
                         .HasColumnType("boolean");
 
@@ -743,6 +756,9 @@ namespace LootNet_API.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ProfileId");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
 
                     b.HasIndex("Username")
                         .IsUnique();

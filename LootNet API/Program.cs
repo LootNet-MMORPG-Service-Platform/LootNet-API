@@ -113,6 +113,8 @@ namespace LootNet_API
                 };
             });
             builder.Services.AddScoped<ITokenService, TokenService>();
+            builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
             builder.Services.Configure<MarketplaceEconomyOptions>(builder.Configuration.GetSection("MarketplaceEconomy"));
             builder.Services.AddScoped<IItemGenerationService, ItemGenerationService>();
             builder.Services.AddScoped<IMarketplaceService, MarketplaceService>();

@@ -126,6 +126,10 @@ public class AppDbContext : DbContext
             .HasIndex(x => x.Username)
             .IsUnique();
 
+        modelBuilder.Entity<User>()
+            .HasIndex(x => x.Email)
+            .IsUnique();
+
         modelBuilder.Entity<ItemGenerationRule>()
             .HasIndex(x => x.ProfileId);
 

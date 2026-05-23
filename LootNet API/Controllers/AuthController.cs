@@ -1,121 +1,96 @@
-﻿namespace LootNet_API.Controllers;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
-using Data;
+namespace LootNet_API.Controllers;
+
 using DTO;
-using Enums;
-using LootNet_API.Models.Items.Generation;
+using LootNet_API.Extensions;
+using LootNet_API.Services;
 using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Models;
 
 [Route("api/auth")]
 [ApiController]
 [EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
-    private readonly AppDbContext _context;
-    private readonly IConfiguration _config;
-    private readonly ITokenService _tokenService;
-    private readonly IRealtimeNotifier _realtimeNotifier;
+    private readonly IAuthService _authService;
 
-    public AuthController(AppDbContext context, IConfiguration config, ITokenService tokenService, IRealtimeNotifier realtimeNotifier)
+    public AuthController(IAuthService authService)
     {
-        _context = context;
-        _config = config;
-        _tokenService = tokenService;
-        _realtimeNotifier = realtimeNotifier;
+        _authService = authService;
     }
 
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterDTO dto)
     {
-        if (_context.Users.Any(u => u.Username == dto.Username))
-            return BadRequest("User already exists");
-
-        var hash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
-        var profileId = await EnsureDefaultProfileAsync();
-
-        var user = new User
+        try
         {
-            Id = Guid.NewGuid(),
-            Username = dto.Username,
-            PasswordHash = hash,
-            Role = UserRole.Player,
-            ProfileId = profileId,
-            Equipment = new Equipment()
-        };
+            await _authService.RegisterAsync(dto);
+            return Ok("Registration successful. Check your email to verify account.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
 
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-        await _realtimeNotifier.AppChangedAsync("auth", "user-registered", user.Id);
+    [HttpGet("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromQuery] VerifyEmailDTO dto)
+    {
+        try
+        {
+            await _authService.VerifyEmailAsync(dto.Token);
+            return Ok("Email verified");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
 
-        return Ok();
+    [HttpPost("resend-verification")]
+    public async Task<IActionResult> ResendVerification([FromBody] ResendEmailVerificationDTO dto)
+    {
+        await _authService.ResendEmailVerificationAsync(dto.Email);
+        return Ok("If the email exists and is not verified, a new verification email has been sent.");
     }
 
     [HttpPost("login")]
-    public IActionResult Login([FromBody] LoginDTO dto)
+    public async Task<IActionResult> Login([FromBody] LoginDTO dto)
     {
-        var user = _context.Users.FirstOrDefault(u => u.Username == dto.Username);
-
-        if (user == null)
-            return Unauthorized("Invalid username or password.");
-
-        if (user.IsBlocked)
+        try
         {
-            var blockedUntil = user.BlockedUntil?.ToString("u") ?? "indefinitely";
-            var reason = string.IsNullOrWhiteSpace(user.BlockReason) ? "No reason provided." : user.BlockReason;
-            return StatusCode(StatusCodes.Status403Forbidden, $"Account is blocked until {blockedUntil}. Reason: {reason}");
+            var result = await _authService.LoginAsync(dto);
+            return Ok(result);
         }
-
-        var valid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
-
-        if (!valid)
-            return Unauthorized("Invalid username or password.");
-
-        var token = _tokenService.GenerateJwt(user);
-        var refresh = _tokenService.GenerateRefreshToken(user.Id);
-
-        return Ok(new AuthResponseDTO
+        catch (UnauthorizedAccessException ex)
         {
-            Token = token,
-            RefreshToken = refresh.Token
-        });
+            return Unauthorized(ex.Message);
+        }
+        catch (AuthForbiddenException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+        }
     }
 
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh([FromBody] string refreshToken)
     {
-        var token = await _tokenService.GetValidRefreshTokenAsync(refreshToken);
-        if (token == null) return Unauthorized("Invalid or expired refresh token");
-
-        var user = _context.Users.FirstOrDefault(u => u.Id == token.UserId);
-        if (user == null) return Unauthorized();
-
-        var newJwt = _tokenService.GenerateJwt(user);
-        await _tokenService.RevokeRefreshTokenAsync(token);
-        var newRefresh = _tokenService.GenerateRefreshToken(user.Id);
-
-        return Ok(new AuthResponseDTO
+        try
         {
-            Token = newJwt,
-            RefreshToken = newRefresh.Token
-        });
+            var result = await _authService.RefreshAsync(refreshToken);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(ex.Message);
+        }
     }
 
     [HttpPost("logout")]
     public async Task<IActionResult> Logout([FromBody] string refreshToken)
     {
-        var token = await _tokenService.GetValidRefreshTokenAsync(refreshToken);
-        if (token != null)
-            await _tokenService.RevokeRefreshTokenAsync(token);
-
+        await _authService.LogoutAsync(refreshToken);
         return Ok();
     }
 
@@ -123,42 +98,18 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDTO dto)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        var user = _context.Users.FirstOrDefault(u => u.Id.ToString() == userId);
-        if (user == null) return NotFound();
-
-        var valid = BCrypt.Net.BCrypt.Verify(dto.OldPassword, user.PasswordHash);
-        if (!valid)
-            return BadRequest("Wrong password");
-
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
-
-        await _context.SaveChangesAsync();
-        await _realtimeNotifier.AppChangedAsync("auth", "password-reset", user.Id);
-
-        return Ok("Password changed");
-    }
-
-    private async Task<Guid> EnsureDefaultProfileAsync()
-    {
-        var profileId = await _context.GenerationProfiles
-            .Select(x => x.Id)
-            .FirstOrDefaultAsync();
-
-        if (profileId != Guid.Empty)
-            return profileId;
-
-        var profile = new GenerationProfile
+        try
         {
-            Id = Guid.NewGuid(),
-            Name = "Default"
-        };
-
-        _context.GenerationProfiles.Add(profile);
-        await _context.SaveChangesAsync();
-
-        return profile.Id;
+            await _authService.ResetPasswordAsync(User.GetUserId(), dto);
+            return Ok("Password changed");
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 }
-

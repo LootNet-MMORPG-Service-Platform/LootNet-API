@@ -1,0 +1,224 @@
+using System.Security.Cryptography;
+using System.Text;
+using LootNet_API.Data;
+using LootNet_API.DTO;
+using LootNet_API.Enums;
+using LootNet_API.Models;
+using LootNet_API.Models.Items.Generation;
+using LootNet_API.Services.Interfaces;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
+
+namespace LootNet_API.Services;
+
+public class AuthService : IAuthService
+{
+    private static readonly TimeSpan EmailVerificationTokenLifetime = TimeSpan.FromHours(24);
+
+    private readonly AppDbContext _context;
+    private readonly IConfiguration _config;
+    private readonly ITokenService _tokenService;
+    private readonly IRealtimeNotifier _realtimeNotifier;
+    private readonly IEmailSender _emailSender;
+
+    public AuthService(
+        AppDbContext context,
+        IConfiguration config,
+        ITokenService tokenService,
+        IRealtimeNotifier realtimeNotifier,
+        IEmailSender emailSender)
+    {
+        _context = context;
+        _config = config;
+        _tokenService = tokenService;
+        _realtimeNotifier = realtimeNotifier;
+        _emailSender = emailSender;
+    }
+
+    public async Task RegisterAsync(RegisterDTO dto)
+    {
+        var username = dto.Username.Trim();
+        var email = NormalizeEmail(dto.Email);
+
+        if (await _context.Users.AnyAsync(u => u.Username == username))
+            throw new InvalidOperationException("User already exists");
+
+        if (await _context.Users.AnyAsync(u => u.Email == email))
+            throw new InvalidOperationException("Email already exists");
+
+        var profileId = await EnsureDefaultProfileAsync();
+        var verificationToken = GenerateToken();
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = username,
+            Email = email,
+            EmailVerified = false,
+            EmailVerificationTokenHash = HashToken(verificationToken),
+            EmailVerificationTokenExpiresAt = DateTime.UtcNow.Add(EmailVerificationTokenLifetime),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+            Role = UserRole.Player,
+            ProfileId = profileId,
+            Equipment = new Equipment()
+        };
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        await _emailSender.SendEmailVerificationAsync(user.Email, user.Username, BuildVerificationUrl(verificationToken));
+        await _realtimeNotifier.AppChangedAsync("auth", "user-registered", user.Id);
+    }
+
+    public async Task<AuthResponseDTO> LoginAsync(LoginDTO dto)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
+
+        if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
+            throw new UnauthorizedAccessException("Invalid username or password.");
+
+        if (user.IsBlocked)
+        {
+            var blockedUntil = user.BlockedUntil?.ToString("u") ?? "indefinitely";
+            var reason = string.IsNullOrWhiteSpace(user.BlockReason) ? "No reason provided." : user.BlockReason;
+            throw new AuthForbiddenException($"Account is blocked until {blockedUntil}. Reason: {reason}");
+        }
+
+        if (!user.EmailVerified)
+            throw new AuthForbiddenException("Email is not verified.");
+
+        var token = _tokenService.GenerateJwt(user);
+        var refresh = _tokenService.GenerateRefreshToken(user.Id);
+
+        return new AuthResponseDTO
+        {
+            Token = token,
+            RefreshToken = refresh.Token
+        };
+    }
+
+    public async Task<AuthResponseDTO> RefreshAsync(string refreshToken)
+    {
+        var token = await _tokenService.GetValidRefreshTokenAsync(refreshToken);
+        if (token == null) throw new UnauthorizedAccessException("Invalid or expired refresh token");
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == token.UserId);
+        if (user == null) throw new UnauthorizedAccessException();
+
+        var newJwt = _tokenService.GenerateJwt(user);
+        await _tokenService.RevokeRefreshTokenAsync(token);
+        var newRefresh = _tokenService.GenerateRefreshToken(user.Id);
+
+        return new AuthResponseDTO
+        {
+            Token = newJwt,
+            RefreshToken = newRefresh.Token
+        };
+    }
+
+    public async Task LogoutAsync(string refreshToken)
+    {
+        var token = await _tokenService.GetValidRefreshTokenAsync(refreshToken);
+        if (token != null)
+            await _tokenService.RevokeRefreshTokenAsync(token);
+    }
+
+    public async Task ResetPasswordAsync(Guid userId, ResetPasswordDTO dto)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null) throw new KeyNotFoundException();
+
+        if (!BCrypt.Net.BCrypt.Verify(dto.OldPassword, user.PasswordHash))
+            throw new InvalidOperationException("Wrong password");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+
+        await _context.SaveChangesAsync();
+        await _realtimeNotifier.AppChangedAsync("auth", "password-reset", user.Id);
+    }
+
+    public async Task VerifyEmailAsync(string token)
+    {
+        var tokenHash = HashToken(token);
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.EmailVerificationTokenHash == tokenHash);
+
+        if (user == null)
+            throw new InvalidOperationException("Invalid email verification token.");
+
+        if (user.EmailVerificationTokenExpiresAt < DateTime.UtcNow)
+            throw new InvalidOperationException("Email verification token expired.");
+
+        user.EmailVerified = true;
+        user.EmailVerificationTokenHash = null;
+        user.EmailVerificationTokenExpiresAt = null;
+
+        await _context.SaveChangesAsync();
+        await _realtimeNotifier.AppChangedAsync("auth", "email-verified", user.Id);
+    }
+
+    public async Task ResendEmailVerificationAsync(string email)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+        if (user == null)
+            return;
+
+        if (user.EmailVerified)
+            return;
+
+        var verificationToken = GenerateToken();
+        user.EmailVerificationTokenHash = HashToken(verificationToken);
+        user.EmailVerificationTokenExpiresAt = DateTime.UtcNow.Add(EmailVerificationTokenLifetime);
+
+        await _context.SaveChangesAsync();
+        await _emailSender.SendEmailVerificationAsync(user.Email, user.Username, BuildVerificationUrl(verificationToken));
+    }
+
+    private async Task<Guid> EnsureDefaultProfileAsync()
+    {
+        var profileId = await _context.GenerationProfiles
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        if (profileId != Guid.Empty)
+            return profileId;
+
+        var profile = new GenerationProfile
+        {
+            Id = Guid.NewGuid(),
+            Name = "Default"
+        };
+
+        _context.GenerationProfiles.Add(profile);
+        await _context.SaveChangesAsync();
+
+        return profile.Id;
+    }
+
+    private string BuildVerificationUrl(string token)
+    {
+        var publicBaseUrl = _config["App:PublicBaseUrl"]?.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(publicBaseUrl))
+            throw new InvalidOperationException("Email verification base URL is not configured. Set App__PublicBaseUrl.");
+
+        return QueryHelpers.AddQueryString($"{publicBaseUrl}/api/auth/verify-email", "token", token);
+    }
+
+    private static string GenerateToken()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        return WebEncoders.Base64UrlEncode(bytes);
+    }
+
+    private static string HashToken(string token)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        return Convert.ToHexString(bytes);
+    }
+
+    private static string NormalizeEmail(string email)
+    {
+        return email.Trim().ToLowerInvariant();
+    }
+}
