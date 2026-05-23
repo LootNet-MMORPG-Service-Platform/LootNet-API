@@ -38,6 +38,8 @@ public class AuthService : IAuthService
 
     public async Task RegisterAsync(RegisterDTO dto)
     {
+        await DeleteExpiredUnverifiedUsersAsync();
+
         var username = dto.Username.Trim();
         var email = NormalizeEmail(dto.Email);
 
@@ -64,15 +66,17 @@ public class AuthService : IAuthService
             Equipment = new Equipment()
         };
 
+        await _emailSender.SendEmailVerificationAsync(user.Email, user.Username, BuildVerificationUrl(verificationToken));
+
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
-
-        await _emailSender.SendEmailVerificationAsync(user.Email, user.Username, BuildVerificationUrl(verificationToken));
         await _realtimeNotifier.AppChangedAsync("auth", "user-registered", user.Id);
     }
 
     public async Task<AuthResponseDTO> LoginAsync(LoginDTO dto)
     {
+        await DeleteExpiredUnverifiedUsersAsync();
+
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
@@ -182,7 +186,15 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("Invalid email verification token.");
 
         if (user.EmailVerificationTokenExpiresAt is null || user.EmailVerificationTokenExpiresAt < DateTime.UtcNow)
+        {
+            if (!user.EmailVerified)
+            {
+                _context.Users.Remove(user);
+                await _context.SaveChangesAsync();
+            }
+
             throw new InvalidOperationException("Email verification token expired.");
+        }
 
         user.EmailVerified = true;
         user.EmailVerificationTokenHash = null;
@@ -194,6 +206,8 @@ public class AuthService : IAuthService
 
     public async Task ResendEmailVerificationAsync(string email)
     {
+        await DeleteExpiredUnverifiedUsersAsync();
+
         var normalizedEmail = NormalizeEmail(email);
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
 
@@ -209,6 +223,23 @@ public class AuthService : IAuthService
 
         await _context.SaveChangesAsync();
         await _emailSender.SendEmailVerificationAsync(user.Email, user.Username, BuildVerificationUrl(verificationToken));
+    }
+
+    public async Task<int> DeleteExpiredUnverifiedUsersAsync()
+    {
+        var now = DateTime.UtcNow;
+        var expiredUsers = await _context.Users
+            .Where(u => !u.EmailVerified
+                && u.EmailVerificationTokenExpiresAt != null
+                && u.EmailVerificationTokenExpiresAt < now)
+            .ToListAsync();
+
+        if (expiredUsers.Count == 0)
+            return 0;
+
+        _context.Users.RemoveRange(expiredUsers);
+        await _context.SaveChangesAsync();
+        return expiredUsers.Count;
     }
 
     private async Task<Guid> EnsureDefaultProfileAsync()

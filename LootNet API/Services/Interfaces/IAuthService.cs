@@ -13,4 +13,5 @@ public interface IAuthService
     Task ResetPasswordByEmailAsync(ResetPasswordByEmailDTO dto);
     Task VerifyEmailAsync(string token);
     Task ResendEmailVerificationAsync(string email);
+    Task<int> DeleteExpiredUnverifiedUsersAsync();
 }

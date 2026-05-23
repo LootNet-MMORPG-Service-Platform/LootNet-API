@@ -52,6 +52,17 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task RegisterAsync_DoesNotCreateUser_WhenVerificationEmailFails()
+    {
+        _emailSender.FailVerificationEmail = true;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.RegisterAsync(new RegisterDTO { Username = "player1", Email = "player1@example.com", Password = "password" }));
+
+        Assert.False(await _db.Users.AnyAsync());
+    }
+
+    [Fact]
     public async Task LoginAsync_RejectsUnverifiedEmail()
     {
         _db.Users.Add(new User
@@ -83,6 +94,54 @@ public class AuthServiceTests
         Assert.True(user.EmailVerified);
         Assert.Null(user.EmailVerificationTokenHash);
         Assert.Null(user.EmailVerificationTokenExpiresAt);
+    }
+
+    [Fact]
+    public async Task VerifyEmailAsync_DeletesUser_WhenVerificationTokenExpired()
+    {
+        await _service.RegisterAsync(new RegisterDTO { Username = "player1", Email = "player1@example.com", Password = "password" });
+        var token = ExtractToken(_emailSender.LastVerificationUrl);
+        var user = await _db.Users.SingleAsync();
+        user.EmailVerificationTokenExpiresAt = DateTime.UtcNow.AddMinutes(-1);
+        await _db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _service.VerifyEmailAsync(token));
+
+        Assert.Equal("Email verification token expired.", ex.Message);
+        Assert.False(await _db.Users.AnyAsync());
+    }
+
+    [Fact]
+    public async Task DeleteExpiredUnverifiedUsersAsync_RemovesExpiredUnverifiedUsers()
+    {
+        _db.Users.AddRange(
+            new User
+            {
+                Id = Guid.NewGuid(),
+                Username = "expired",
+                Email = "expired@example.com",
+                EmailVerified = false,
+                EmailVerificationTokenExpiresAt = DateTime.UtcNow.AddMinutes(-1),
+                PasswordHash = "hash",
+                Equipment = new Equipment()
+            },
+            new User
+            {
+                Id = Guid.NewGuid(),
+                Username = "verified",
+                Email = "verified@example.com",
+                EmailVerified = true,
+                EmailVerificationTokenExpiresAt = DateTime.UtcNow.AddMinutes(-1),
+                PasswordHash = "hash",
+                Equipment = new Equipment()
+            });
+        await _db.SaveChangesAsync();
+
+        var deleted = await _service.DeleteExpiredUnverifiedUsersAsync();
+
+        Assert.Equal(1, deleted);
+        Assert.False(await _db.Users.AnyAsync(u => u.Username == "expired"));
+        Assert.True(await _db.Users.AnyAsync(u => u.Username == "verified"));
     }
 
     [Fact]
@@ -169,9 +228,13 @@ public class AuthServiceTests
         public string? LastVerificationUrl { get; private set; }
         public string? LastPasswordResetEmail { get; private set; }
         public string? LastPasswordResetUrl { get; private set; }
+        public bool FailVerificationEmail { get; set; }
 
         public Task SendEmailVerificationAsync(string email, string username, string verificationUrl)
         {
+            if (FailVerificationEmail)
+                throw new InvalidOperationException("Email send failed.");
+
             LastEmail = email;
             LastVerificationUrl = verificationUrl;
             return Task.CompletedTask;

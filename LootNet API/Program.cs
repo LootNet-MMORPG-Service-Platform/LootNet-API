@@ -114,6 +114,7 @@ namespace LootNet_API
             });
             builder.Services.AddScoped<ITokenService, TokenService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddHostedService<EmailVerificationCleanupService>();
             if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Resend:ApiKey"]))
                 builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>();
             else
