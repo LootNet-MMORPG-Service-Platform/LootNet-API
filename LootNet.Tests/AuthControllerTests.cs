@@ -242,5 +242,11 @@ public class AuthControllerTests
             LastEmail = email;
             return Task.CompletedTask;
         }
+
+        public Task SendPasswordResetAsync(string email, string username, string resetUrl)
+        {
+            LastEmail = email;
+            return Task.CompletedTask;
+        }
     }
 }

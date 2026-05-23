@@ -730,6 +730,12 @@ namespace LootNet_API.Migrations
                     b.Property<string>("EmailVerificationTokenHash")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("PasswordResetTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PasswordResetTokenHash")
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsBlocked")
                         .HasColumnType("boolean");
 

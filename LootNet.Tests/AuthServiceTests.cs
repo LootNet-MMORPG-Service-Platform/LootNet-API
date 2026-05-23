@@ -29,7 +29,8 @@ public class AuthServiceTests
             {"Jwt:Audience", "TestAudience"},
             {"Jwt:AccessTokenMinutes", "60"},
             {"Jwt:RefreshTokenDays", "7"},
-            {"App:PublicBaseUrl", "https://lootnet-api.test"}
+            {"App:PublicBaseUrl", "https://lootnet-api.test"},
+            {"App:WebBaseUrl", "https://lootnet-web.test"}
         }).Build();
 
         _emailSender = new FakeEmailSender();
@@ -47,7 +48,7 @@ public class AuthServiceTests
         Assert.NotNull(user.EmailVerificationTokenHash);
         Assert.NotNull(user.EmailVerificationTokenExpiresAt);
         Assert.Equal("player1@example.com", _emailSender.LastEmail);
-        Assert.Contains("/api/auth/verify-email?token=", _emailSender.LastVerificationUrl);
+        Assert.Contains("/verify-email?token=", _emailSender.LastVerificationUrl);
     }
 
     [Fact]
@@ -94,7 +95,58 @@ public class AuthServiceTests
         await _service.ResendEmailVerificationAsync("player1@example.com");
 
         Assert.NotEqual(firstHash, user.EmailVerificationTokenHash);
-        Assert.Contains("/api/auth/verify-email?token=", _emailSender.LastVerificationUrl);
+        Assert.Contains("/verify-email?token=", _emailSender.LastVerificationUrl);
+    }
+
+    [Fact]
+    public async Task RequestPasswordResetAsync_SendsResetEmail()
+    {
+        _db.Users.Add(new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "player1",
+            Email = "player1@example.com",
+            EmailVerified = true,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("password"),
+            Equipment = new Equipment()
+        });
+        await _db.SaveChangesAsync();
+
+        await _service.RequestPasswordResetAsync("PLAYER1@example.com");
+
+        var user = await _db.Users.SingleAsync();
+        Assert.NotNull(user.PasswordResetTokenHash);
+        Assert.NotNull(user.PasswordResetTokenExpiresAt);
+        Assert.Equal("player1@example.com", _emailSender.LastPasswordResetEmail);
+        Assert.Contains("/reset-password?token=", _emailSender.LastPasswordResetUrl);
+    }
+
+    [Fact]
+    public async Task ResetPasswordByEmailAsync_ChangesPassword_AndClearsToken()
+    {
+        _db.Users.Add(new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "player1",
+            Email = "player1@example.com",
+            EmailVerified = true,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldpassword"),
+            Equipment = new Equipment()
+        });
+        await _db.SaveChangesAsync();
+        await _service.RequestPasswordResetAsync("player1@example.com");
+        var token = ExtractToken(_emailSender.LastPasswordResetUrl);
+
+        await _service.ResetPasswordByEmailAsync(new ResetPasswordByEmailDTO
+        {
+            Token = token,
+            NewPassword = "newpassword"
+        });
+
+        var user = await _db.Users.SingleAsync();
+        Assert.True(BCrypt.Net.BCrypt.Verify("newpassword", user.PasswordHash));
+        Assert.Null(user.PasswordResetTokenHash);
+        Assert.Null(user.PasswordResetTokenExpiresAt);
     }
 
     private static string ExtractToken(string? url)
@@ -115,11 +167,20 @@ public class AuthServiceTests
     {
         public string? LastEmail { get; private set; }
         public string? LastVerificationUrl { get; private set; }
+        public string? LastPasswordResetEmail { get; private set; }
+        public string? LastPasswordResetUrl { get; private set; }
 
         public Task SendEmailVerificationAsync(string email, string username, string verificationUrl)
         {
             LastEmail = email;
             LastVerificationUrl = verificationUrl;
+            return Task.CompletedTask;
+        }
+
+        public Task SendPasswordResetAsync(string email, string username, string resetUrl)
+        {
+            LastPasswordResetEmail = email;
+            LastPasswordResetUrl = resetUrl;
             return Task.CompletedTask;
         }
     }

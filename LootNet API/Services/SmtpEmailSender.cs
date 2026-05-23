@@ -15,6 +15,22 @@ public class SmtpEmailSender : IEmailSender
 
     public async Task SendEmailVerificationAsync(string email, string username, string verificationUrl)
     {
+        await SendAsync(
+            email,
+            "Verify your LootNet email",
+            $"Hi {username},\n\nVerify your LootNet account by opening this link:\n{verificationUrl}\n\nThis link expires in 24 hours.");
+    }
+
+    public async Task SendPasswordResetAsync(string email, string username, string resetUrl)
+    {
+        await SendAsync(
+            email,
+            "Reset your LootNet password",
+            $"Hi {username},\n\nReset your LootNet password by opening this link:\n{resetUrl}\n\nThis link expires in 1 hour. If you did not request this, ignore this email.");
+    }
+
+    private async Task SendAsync(string email, string subject, string body)
+    {
         var host = _config["Email:Smtp:Host"];
         var from = _config["Email:From"];
 
@@ -28,8 +44,8 @@ public class SmtpEmailSender : IEmailSender
 
         using var message = new MailMessage(from, email)
         {
-            Subject = "Verify your LootNet email",
-            Body = $"Hi {username},\n\nVerify your LootNet account by opening this link:\n{verificationUrl}\n\nThis link expires in 24 hours.",
+            Subject = subject,
+            Body = body,
             IsBodyHtml = false
         };
 

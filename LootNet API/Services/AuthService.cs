@@ -14,6 +14,7 @@ namespace LootNet_API.Services;
 public class AuthService : IAuthService
 {
     private static readonly TimeSpan EmailVerificationTokenLifetime = TimeSpan.FromHours(24);
+    private static readonly TimeSpan PasswordResetTokenLifetime = TimeSpan.FromHours(1);
 
     private readonly AppDbContext _context;
     private readonly IConfiguration _config;
@@ -137,6 +138,41 @@ public class AuthService : IAuthService
         await _realtimeNotifier.AppChangedAsync("auth", "password-reset", user.Id);
     }
 
+    public async Task RequestPasswordResetAsync(string email)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+        if (user == null)
+            return;
+
+        var resetToken = GenerateToken();
+        user.PasswordResetTokenHash = HashToken(resetToken);
+        user.PasswordResetTokenExpiresAt = DateTime.UtcNow.Add(PasswordResetTokenLifetime);
+
+        await _context.SaveChangesAsync();
+        await _emailSender.SendPasswordResetAsync(user.Email, user.Username, BuildPasswordResetUrl(resetToken));
+    }
+
+    public async Task ResetPasswordByEmailAsync(ResetPasswordByEmailDTO dto)
+    {
+        var tokenHash = HashToken(dto.Token);
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.PasswordResetTokenHash == tokenHash);
+
+        if (user == null)
+            throw new InvalidOperationException("Invalid password reset token.");
+
+        if (user.PasswordResetTokenExpiresAt is null || user.PasswordResetTokenExpiresAt < DateTime.UtcNow)
+            throw new InvalidOperationException("Password reset token expired.");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        user.PasswordResetTokenHash = null;
+        user.PasswordResetTokenExpiresAt = null;
+
+        await _context.SaveChangesAsync();
+        await _realtimeNotifier.AppChangedAsync("auth", "password-reset", user.Id);
+    }
+
     public async Task VerifyEmailAsync(string token)
     {
         var tokenHash = HashToken(token);
@@ -145,7 +181,7 @@ public class AuthService : IAuthService
         if (user == null)
             throw new InvalidOperationException("Invalid email verification token.");
 
-        if (user.EmailVerificationTokenExpiresAt < DateTime.UtcNow)
+        if (user.EmailVerificationTokenExpiresAt is null || user.EmailVerificationTokenExpiresAt < DateTime.UtcNow)
             throw new InvalidOperationException("Email verification token expired.");
 
         user.EmailVerified = true;
@@ -198,11 +234,29 @@ public class AuthService : IAuthService
 
     private string BuildVerificationUrl(string token)
     {
-        var publicBaseUrl = _config["App:PublicBaseUrl"]?.TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(publicBaseUrl))
+        var webBaseUrl = GetWebBaseUrl();
+        if (!string.IsNullOrWhiteSpace(webBaseUrl))
+            return QueryHelpers.AddQueryString($"{webBaseUrl}/verify-email", "token", token);
+
+        var apiBaseUrl = _config["App:PublicBaseUrl"]?.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(apiBaseUrl))
             throw new InvalidOperationException("Email verification base URL is not configured. Set App__PublicBaseUrl.");
 
-        return QueryHelpers.AddQueryString($"{publicBaseUrl}/api/auth/verify-email", "token", token);
+        return QueryHelpers.AddQueryString($"{apiBaseUrl}/api/auth/verify-email", "token", token);
+    }
+
+    private string BuildPasswordResetUrl(string token)
+    {
+        var webBaseUrl = GetWebBaseUrl();
+        if (string.IsNullOrWhiteSpace(webBaseUrl))
+            throw new InvalidOperationException("Password reset web URL is not configured. Set App__WebBaseUrl.");
+
+        return QueryHelpers.AddQueryString($"{webBaseUrl}/reset-password", "token", token);
+    }
+
+    private string? GetWebBaseUrl()
+    {
+        return _config["App:WebBaseUrl"]?.TrimEnd('/');
     }
 
     private static string GenerateToken()

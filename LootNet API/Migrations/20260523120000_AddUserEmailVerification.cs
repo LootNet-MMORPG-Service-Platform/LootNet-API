@@ -36,6 +36,18 @@ namespace LootNet_API.Migrations
                 type: "text",
                 nullable: true);
 
+            migrationBuilder.AddColumn<DateTime>(
+                name: "PasswordResetTokenExpiresAt",
+                table: "Users",
+                type: "timestamp with time zone",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "PasswordResetTokenHash",
+                table: "Users",
+                type: "text",
+                nullable: true);
+
             migrationBuilder.Sql(@"
                 UPDATE ""Users""
                 SET ""Email"" = lower(""Username"") || '@lootnet.local',
@@ -80,6 +92,14 @@ namespace LootNet_API.Migrations
 
             migrationBuilder.DropColumn(
                 name: "EmailVerificationTokenHash",
+                table: "Users");
+
+            migrationBuilder.DropColumn(
+                name: "PasswordResetTokenExpiresAt",
+                table: "Users");
+
+            migrationBuilder.DropColumn(
+                name: "PasswordResetTokenHash",
                 table: "Users");
         }
     }

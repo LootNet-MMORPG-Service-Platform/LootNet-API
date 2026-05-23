@@ -12,6 +12,8 @@ public class User
     public bool EmailVerified { get; set; }
     public string? EmailVerificationTokenHash { get; set; }
     public DateTime? EmailVerificationTokenExpiresAt { get; set; }
+    public string? PasswordResetTokenHash { get; set; }
+    public DateTime? PasswordResetTokenExpiresAt { get; set; }
     public required string PasswordHash { get; set; }
     public UserRole Role { get; set; }
 

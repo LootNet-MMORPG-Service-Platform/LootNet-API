@@ -55,6 +55,27 @@ public class AuthController : ControllerBase
         return Ok("If the email exists and is not verified, a new verification email has been sent.");
     }
 
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDTO dto)
+    {
+        await _authService.RequestPasswordResetAsync(dto.Email);
+        return Ok("If the email exists, a password reset link has been sent.");
+    }
+
+    [HttpPost("reset-password-email")]
+    public async Task<IActionResult> ResetPasswordByEmail([FromBody] ResetPasswordByEmailDTO dto)
+    {
+        try
+        {
+            await _authService.ResetPasswordByEmailAsync(dto);
+            return Ok("Password changed");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDTO dto)
     {

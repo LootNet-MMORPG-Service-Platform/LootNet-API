@@ -238,7 +238,7 @@ namespace LootNet_API
 
             app.MapControllers().RequireRateLimiting("api");
             app.MapHub<GameHub>("/hub");
-            if (app.Environment.IsDevelopment())
+            if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
