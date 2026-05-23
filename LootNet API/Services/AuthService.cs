@@ -42,6 +42,7 @@ public class AuthService : IAuthService
 
         var username = dto.Username.Trim();
         var email = NormalizeEmail(dto.Email);
+        ValidatePassword(dto.Password);
 
         if (await _context.Users.AnyAsync(u => u.Username == username))
             throw new InvalidOperationException("User already exists");
@@ -136,6 +137,7 @@ public class AuthService : IAuthService
         if (!BCrypt.Net.BCrypt.Verify(dto.OldPassword, user.PasswordHash))
             throw new InvalidOperationException("Wrong password");
 
+        ValidatePassword(dto.NewPassword);
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
 
         await _context.SaveChangesAsync();
@@ -169,6 +171,7 @@ public class AuthService : IAuthService
         if (user.PasswordResetTokenExpiresAt is null || user.PasswordResetTokenExpiresAt < DateTime.UtcNow)
             throw new InvalidOperationException("Password reset token expired.");
 
+        ValidatePassword(dto.NewPassword);
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         user.PasswordResetTokenHash = null;
         user.PasswordResetTokenExpiresAt = null;
@@ -288,6 +291,32 @@ public class AuthService : IAuthService
     private string? GetWebBaseUrl()
     {
         return _config["App:WebBaseUrl"]?.TrimEnd('/');
+    }
+
+    private void ValidatePassword(string password)
+    {
+        if (IsDevelopmentMode())
+            return;
+
+        if (password.Length < 12)
+            throw new InvalidOperationException("Password must be at least 12 characters.");
+
+        if (!password.Any(char.IsUpper))
+            throw new InvalidOperationException("Password must contain at least one uppercase letter.");
+
+        if (!password.Any(char.IsLower))
+            throw new InvalidOperationException("Password must contain at least one lowercase letter.");
+
+        if (!password.Any(char.IsDigit))
+            throw new InvalidOperationException("Password must contain at least one digit.");
+
+        if (!password.Any(ch => !char.IsLetterOrDigit(ch)))
+            throw new InvalidOperationException("Password must contain at least one special character.");
+    }
+
+    private bool IsDevelopmentMode()
+    {
+        return _config.GetValue<bool>("Development");
     }
 
     private static string GenerateToken()

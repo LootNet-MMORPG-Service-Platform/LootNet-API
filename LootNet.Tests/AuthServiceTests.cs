@@ -22,7 +22,49 @@ public class AuthServiceTests
     public AuthServiceTests()
     {
         _db = TestDbContextFactory.Create();
-        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        var config = BuildConfig(development: true);
+
+        _emailSender = new FakeEmailSender();
+        _service = new AuthService(_db, config, new TokenService(_db, config), new FakeRealtimeNotifier(), _emailSender);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_AllowsWeakPassword_WhenDevelopmentEnabled()
+    {
+        await _service.RegisterAsync(new RegisterDTO { Username = "player1", Email = "player1@example.com", Password = "short" });
+
+        Assert.True(await _db.Users.AnyAsync(u => u.Username == "player1"));
+    }
+
+    [Fact]
+    public async Task RegisterAsync_RejectsWeakPassword_WhenDevelopmentDisabled()
+    {
+        var db = TestDbContextFactory.Create();
+        var config = BuildConfig(development: false);
+        var service = new AuthService(db, config, new TokenService(db, config), new FakeRealtimeNotifier(), new FakeEmailSender());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RegisterAsync(new RegisterDTO { Username = "player1", Email = "player1@example.com", Password = "password" }));
+
+        Assert.Equal("Password must be at least 12 characters.", ex.Message);
+        Assert.False(await db.Users.AnyAsync());
+    }
+
+    [Fact]
+    public async Task RegisterAsync_AllowsStrongPassword_WhenDevelopmentDisabled()
+    {
+        var db = TestDbContextFactory.Create();
+        var config = BuildConfig(development: false);
+        var service = new AuthService(db, config, new TokenService(db, config), new FakeRealtimeNotifier(), new FakeEmailSender());
+
+        await service.RegisterAsync(new RegisterDTO { Username = "player1", Email = "player1@example.com", Password = "StrongPass1!" });
+
+        Assert.True(await db.Users.AnyAsync(u => u.Username == "player1"));
+    }
+
+    private static IConfiguration BuildConfig(bool development)
+    {
+        return new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             {"Jwt:Key", "SuperSecretKey12345678901234567890"},
             {"Jwt:Issuer", "TestIssuer"},
@@ -30,11 +72,9 @@ public class AuthServiceTests
             {"Jwt:AccessTokenMinutes", "60"},
             {"Jwt:RefreshTokenDays", "7"},
             {"App:PublicBaseUrl", "https://lootnet-api.test"},
-            {"App:WebBaseUrl", "https://lootnet-web.test"}
+            {"App:WebBaseUrl", "https://lootnet-web.test"},
+            {"Development", development.ToString()}
         }).Build();
-
-        _emailSender = new FakeEmailSender();
-        _service = new AuthService(_db, config, new TokenService(_db, config), new FakeRealtimeNotifier(), _emailSender);
     }
 
     [Fact]

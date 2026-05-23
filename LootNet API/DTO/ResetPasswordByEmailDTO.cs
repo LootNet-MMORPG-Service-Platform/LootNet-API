@@ -8,7 +8,6 @@ namespace LootNet_API.DTO
         public required string Token { get; set; }
 
         [Required]
-        [MinLength(8)]
         [StringLength(128)]
         public required string NewPassword { get; set; }
     }

@@ -15,7 +15,6 @@ namespace LootNet_API.DTO
         public required string Email { get; set; }
 
         [Required]
-        [MinLength(8)]
         [StringLength(128)]
         public required string Password { get; set; }
     }
