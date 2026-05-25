@@ -291,8 +291,15 @@ public class MarketplaceService : IMarketplaceService
             {
                 return new MyMarketListingDTO
                 {
-                    ListingId = l.Id, ItemId = weapon.Id, Name = weapon.Name, Price = l.Price, Category = ItemCategory.Weapon, CreatedAt = l.CreatedAt,
-                    WeaponType = weapon.WeaponType, Cut = weapon.Cut, Blunt = weapon.Blunt,
+                    ListingId = l.Id,
+                    ItemId = weapon.Id,
+                    Name = weapon.Name,
+                    Price = l.Price,
+                    Category = ItemCategory.Weapon,
+                    CreatedAt = l.CreatedAt,
+                    WeaponType = weapon.WeaponType,
+                    Cut = weapon.Cut,
+                    Blunt = weapon.Blunt,
                     Elements = weapon.Elements.Select(e => new ItemElementDTO { Type = e.ItemElementType, Value = e.Value }).ToList()
                 };
             }
@@ -302,8 +309,15 @@ public class MarketplaceService : IMarketplaceService
             {
                 return new MyMarketListingDTO
                 {
-                    ListingId = l.Id, ItemId = armor.Id, Name = armor.Name, Price = l.Price, Category = ItemCategory.Armor, CreatedAt = l.CreatedAt,
-                    ArmorType = armor.ArmorType, CutResistance = armor.CutResistance, BluntResistance = armor.BluntResistance,
+                    ListingId = l.Id,
+                    ItemId = armor.Id,
+                    Name = armor.Name,
+                    Price = l.Price,
+                    Category = ItemCategory.Armor,
+                    CreatedAt = l.CreatedAt,
+                    ArmorType = armor.ArmorType,
+                    CutResistance = armor.CutResistance,
+                    BluntResistance = armor.BluntResistance,
                     Elements = armor.Elements.Select(e => new ItemElementDTO { Type = e.ItemElementType, Value = e.Value }).ToList()
                 };
             }

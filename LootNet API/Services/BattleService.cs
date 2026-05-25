@@ -59,7 +59,7 @@ public class BattleService
         run.RightHandItemId = eq.WeaponSlot2Id ?? eq.WeaponSlot1Id;
     }
 
-    public async Task<BattleResultDTO> HandlePlayerTurnAsync(Run run,Battle battle,TurnActionDTO action)
+    public async Task<BattleResultDTO> HandlePlayerTurnAsync(Run run, Battle battle, TurnActionDTO action)
     {
         var result = new BattleResultDTO { Log = new List<string>() };
 
@@ -97,8 +97,8 @@ public class BattleService
         return finalResult;
     }
 
-    private async Task HandleActionAsync(Run run,Battle battle,
-        TurnActionDTO action,BattleResultDTO result)
+    private async Task HandleActionAsync(Run run, Battle battle,
+        TurnActionDTO action, BattleResultDTO result)
     {
         switch (action.Type)
         {
@@ -128,7 +128,7 @@ public class BattleService
         }
     }
 
-    private async Task PlayerAttackAsync(Run run,Battle battle,TurnActionDTO action,BattleResultDTO result)
+    private async Task PlayerAttackAsync(Run run, Battle battle, TurnActionDTO action, BattleResultDTO result)
     {
         var target = battle.Enemies.FirstOrDefault(e => e.Position == action.TargetPosition);
         if (target == null)
@@ -177,7 +177,7 @@ public class BattleService
         run.IsPlayerDisorganized = false;
     }
 
-    private async Task EnemyTurnAsync(Run run,Battle battle,BattleResultDTO result)
+    private async Task EnemyTurnAsync(Run run, Battle battle, BattleResultDTO result)
     {
         var playerEquipment = await LoadPlayerEquipmentAsync(run.UserId);
 

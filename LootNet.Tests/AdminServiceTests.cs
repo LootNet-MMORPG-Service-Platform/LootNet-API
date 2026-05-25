@@ -739,7 +739,7 @@ public class AdminServiceTests
             => throw new NotSupportedException();
         public Task<Weapon?> GetWeaponModelAsync(Guid id) => throw new NotSupportedException();
         public Task<Equipment?> GetEquipmentModelAsync(Guid id) => throw new NotSupportedException();
-        public void  ApplyEnemyEquipment(Equipment equipment, List<Item> list) => throw new NotSupportedException();
+        public void ApplyEnemyEquipment(Equipment equipment, List<Item> list) => throw new NotSupportedException();
     }
 
     private class CapturingRealtimeNotifier : IRealtimeNotifier

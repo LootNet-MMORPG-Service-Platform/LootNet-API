@@ -187,7 +187,7 @@ namespace LootNet_API
                 connectionString = new Npgsql.NpgsqlConnectionStringBuilder
                 {
                     Host = databaseUri.Host,
-                    Port =port,
+                    Port = port,
                     Username = Uri.UnescapeDataString(userInfo[0]),
                     Password = Uri.UnescapeDataString(userInfo[1]),
                     Database = Uri.UnescapeDataString(databaseUri.AbsolutePath.TrimStart('/')),

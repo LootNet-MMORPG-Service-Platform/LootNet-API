@@ -157,8 +157,15 @@ public class ItemGeneratorTests
     {
         var db = TestDbContextFactory.Create();
         var profile = new GenerationProfile { Id = Guid.NewGuid(), Name = "EmptyWeights" };
-        var user = new User { Id = Guid.NewGuid(), Username = "p", PasswordHash = "h", 
-            Role = UserRole.Player, ProfileId = profile.Id, Profile = profile, Equipment = new Equipment()
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "p",
+            PasswordHash = "h",
+            Role = UserRole.Player,
+            ProfileId = profile.Id,
+            Profile = profile,
+            Equipment = new Equipment()
         };
         db.Users.Add(user);
         db.GenerationProfiles.Add(profile);
@@ -184,8 +191,15 @@ public class ItemGeneratorTests
             }
         };
 
-        var user = new User { Id = Guid.NewGuid(), Username = "p", PasswordHash = "h",
-            Role = UserRole.Player, ProfileId = profile.Id, Profile = profile, Equipment = new Equipment()
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "p",
+            PasswordHash = "h",
+            Role = UserRole.Player,
+            ProfileId = profile.Id,
+            Profile = profile,
+            Equipment = new Equipment()
         };
 
         db.Users.Add(user);
@@ -238,8 +252,15 @@ public class ItemGeneratorTests
         };
 
         profile.Rules.Add(rule);
-        var user = new User { Id = Guid.NewGuid(), Username = "p3", PasswordHash = "h",
-            Role = UserRole.Player, ProfileId = profile.Id, Profile = profile, Equipment = new Equipment()
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "p3",
+            PasswordHash = "h",
+            Role = UserRole.Player,
+            ProfileId = profile.Id,
+            Profile = profile,
+            Equipment = new Equipment()
         };
 
         db.Users.Add(user);
@@ -299,8 +320,15 @@ public class ItemGeneratorTests
         profile.Rules.Add(weaponRule);
         profile.Rules.Add(armorRule);
 
-        var user = new User { Id = Guid.NewGuid(), Username = "p4", PasswordHash = "h", 
-            Role = UserRole.Player, ProfileId = profile.Id, Profile = profile, Equipment = new Equipment()
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "p4",
+            PasswordHash = "h",
+            Role = UserRole.Player,
+            ProfileId = profile.Id,
+            Profile = profile,
+            Equipment = new Equipment()
         };
 
         db.Users.Add(user);
