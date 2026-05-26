@@ -24,7 +24,7 @@ public class GenerationAdminService : IGenerationAdminService
 
     #region CREATE
 
-    public async Task<Guid> CreateProfileAsync(CreateGenerationProfileDTO dto)
+    public async Task<Guid> CreateProfileAsync(CreateGenerationProfileDTO dto, Guid adminId = default)
     {
         var p = new GenerationProfile
         {
@@ -34,12 +34,12 @@ public class GenerationAdminService : IGenerationAdminService
 
         _context.GenerationProfiles.Add(p);
         await _context.SaveChangesAsync();
-        await LogAsync("CREATE_PROFILE", p.Id);
+        await LogAsync(adminId, "CREATE_PROFILE", p.Id);
 
         return p.Id;
     }
 
-    public async Task<Guid> CreateProfileAsync(CreateGenerationProfileFullDTO dto)
+    public async Task<Guid> CreateProfileAsync(CreateGenerationProfileFullDTO dto, Guid adminId = default)
     {
         ValidateProfile(dto);
 
@@ -84,12 +84,12 @@ public class GenerationAdminService : IGenerationAdminService
         }
 
         await _context.SaveChangesAsync();
-        await LogAsync("CREATE_PROFILE_FULL", profile.Id);
+        await LogAsync(adminId, "CREATE_PROFILE_FULL", profile.Id);
 
         return profile.Id;
     }
 
-    public async Task<Guid> CreateRuleAsync(Guid profileId, CreateRuleDTO dto)
+    public async Task<Guid> CreateRuleAsync(Guid profileId, CreateRuleDTO dto, Guid adminId = default)
     {
         Validate(dto.WeaponType, dto.ArmorType);
 
@@ -106,11 +106,11 @@ public class GenerationAdminService : IGenerationAdminService
         _context.ItemGenerationRules.Add(r);
         await _context.SaveChangesAsync();
 
-        await LogAsync("CREATE_RULE", r.Id);
+        await LogAsync(adminId, "CREATE_RULE", r.Id);
         return r.Id;
     }
 
-    public async Task<Guid> CreateFullRuleAsync(CreateRuleFullDTO dto)
+    public async Task<Guid> CreateFullRuleAsync(CreateRuleFullDTO dto, Guid adminId = default)
     {
         Validate(dto.WeaponType, dto.ArmorType);
 
@@ -127,11 +127,11 @@ public class GenerationAdminService : IGenerationAdminService
         _context.ItemGenerationRules.Add(rule);
         await _context.SaveChangesAsync();
 
-        await LogAsync("CREATE_RULE_FULL", rule.Id);
+        await LogAsync(adminId, "CREATE_RULE_FULL", rule.Id);
         return rule.Id;
     }
 
-    public async Task<Guid> CreateParameterAsync(Guid ruleId, CreateParameterDTO dto)
+    public async Task<Guid> CreateParameterAsync(Guid ruleId, CreateParameterDTO dto, Guid adminId = default)
     {
         var p = new ItemParameterSetting
         {
@@ -150,11 +150,11 @@ public class GenerationAdminService : IGenerationAdminService
         _context.ItemParameterSettings.Add(p);
         await _context.SaveChangesAsync();
 
-        await LogAsync("CREATE_PARAMETER", p.Id);
+        await LogAsync(adminId, "CREATE_PARAMETER", p.Id);
         return p.Id;
     }
 
-    public async Task<Guid> CreateElementAsync(Guid ruleId, CreateElementDTO dto)
+    public async Task<Guid> CreateElementAsync(Guid ruleId, CreateElementDTO dto, Guid adminId = default)
     {
         var e = new ItemElementSetting
         {
@@ -173,11 +173,11 @@ public class GenerationAdminService : IGenerationAdminService
         _context.ItemElementSettings.Add(e);
         await _context.SaveChangesAsync();
 
-        await LogAsync("CREATE_ELEMENT", e.Id);
+        await LogAsync(adminId, "CREATE_ELEMENT", e.Id);
         return e.Id;
     }
 
-    public async Task<Guid> CreateWeightAsync(Guid profileId, CreateTypeWeightDTO dto)
+    public async Task<Guid> CreateWeightAsync(Guid profileId, CreateTypeWeightDTO dto, Guid adminId = default)
     {
         Validate(dto.WeaponType, dto.ArmorType);
 
@@ -194,7 +194,7 @@ public class GenerationAdminService : IGenerationAdminService
         _context.ItemTypeWeights.Add(w);
         await _context.SaveChangesAsync();
 
-        await LogAsync("CREATE_WEIGHT", w.Id);
+        await LogAsync(adminId, "CREATE_WEIGHT", w.Id);
         return w.Id;
     }
 
@@ -301,16 +301,16 @@ public class GenerationAdminService : IGenerationAdminService
 
     #region UPDATE
 
-    public async Task UpdateProfileAsync(UpdateGenerationProfileDTO dto)
+    public async Task UpdateProfileAsync(UpdateGenerationProfileDTO dto, Guid adminId = default)
     {
         var p = await _context.GenerationProfiles.FirstAsync(x => x.Id == dto.Id);
         p.Name = dto.Name;
 
         await _context.SaveChangesAsync();
-        await LogAsync("UPDATE_PROFILE", p.Id);
+        await LogAsync(adminId, "UPDATE_PROFILE", p.Id);
     }
 
-    public async Task UpdateRuleAsync(UpdateRuleDTO dto)
+    public async Task UpdateRuleAsync(UpdateRuleDTO dto, Guid adminId = default)
     {
         Validate(dto.WeaponType, dto.ArmorType);
 
@@ -322,28 +322,54 @@ public class GenerationAdminService : IGenerationAdminService
         r.IsFallback = dto.IsFallback;
 
         await _context.SaveChangesAsync();
-        await LogAsync("UPDATE_RULE", r.Id);
+        await LogAsync(adminId, "UPDATE_RULE", r.Id);
     }
 
-    public async Task UpdateParameterAsync(UpdateParameterDTO dto)
+    public async Task UpdateParameterAsync(UpdateParameterDTO dto, Guid adminId = default)
     {
         var p = await _context.ItemParameterSettings.FirstAsync(x => x.Id == dto.Id);
         p.Parameter = dto.Parameter;
 
+        var oldSegments = await _context.DistributionSegments
+            .Where(x => x.ItemParameterSettingId == p.Id)
+            .ToListAsync();
+        _context.DistributionSegments.RemoveRange(oldSegments);
+        _context.DistributionSegments.AddRange(dto.Segments.Select(s => new DistributionSegment
+        {
+            Id = Guid.NewGuid(),
+            ItemParameterSettingId = p.Id,
+            Min = s.Min,
+            Max = s.Max,
+            Weight = s.Weight
+        }));
+
         await _context.SaveChangesAsync();
-        await LogAsync("UPDATE_PARAMETER", p.Id);
+        await LogAsync(adminId, "UPDATE_PARAMETER", p.Id);
     }
 
-    public async Task UpdateElementAsync(UpdateElementDTO dto)
+    public async Task UpdateElementAsync(UpdateElementDTO dto, Guid adminId = default)
     {
         var e = await _context.ItemElementSettings.FirstAsync(x => x.Id == dto.Id);
         e.ElementType = dto.ElementType;
 
+        var oldSegments = await _context.DistributionSegments
+            .Where(x => x.ItemElementSettingId == e.Id)
+            .ToListAsync();
+        _context.DistributionSegments.RemoveRange(oldSegments);
+        _context.DistributionSegments.AddRange(dto.Segments.Select(s => new DistributionSegment
+        {
+            Id = Guid.NewGuid(),
+            ItemElementSettingId = e.Id,
+            Min = s.Min,
+            Max = s.Max,
+            Weight = s.Weight
+        }));
+
         await _context.SaveChangesAsync();
-        await LogAsync("UPDATE_ELEMENT", e.Id);
+        await LogAsync(adminId, "UPDATE_ELEMENT", e.Id);
     }
 
-    public async Task UpdateWeightAsync(UpdateTypeWeightDTO dto)
+    public async Task UpdateWeightAsync(UpdateTypeWeightDTO dto, Guid adminId = default)
     {
         Validate(dto.WeaponType, dto.ArmorType);
 
@@ -355,56 +381,56 @@ public class GenerationAdminService : IGenerationAdminService
         w.Weight = dto.Weight;
 
         await _context.SaveChangesAsync();
-        await LogAsync("UPDATE_WEIGHT", w.Id);
+        await LogAsync(adminId, "UPDATE_WEIGHT", w.Id);
     }
 
     #endregion
 
     #region DELETE
 
-    public async Task DeleteProfileAsync(Guid id)
+    public async Task DeleteProfileAsync(Guid id, Guid adminId = default)
     {
         _context.GenerationProfiles.Remove(
             await _context.GenerationProfiles.FirstAsync(x => x.Id == id));
 
         await _context.SaveChangesAsync();
-        await LogAsync("DELETE_PROFILE", id);
+        await LogAsync(adminId, "DELETE_PROFILE", id);
     }
 
-    public async Task DeleteRuleAsync(Guid id)
+    public async Task DeleteRuleAsync(Guid id, Guid adminId = default)
     {
         _context.ItemGenerationRules.Remove(
             await _context.ItemGenerationRules.FirstAsync(x => x.Id == id));
 
         await _context.SaveChangesAsync();
-        await LogAsync("DELETE_RULE", id);
+        await LogAsync(adminId, "DELETE_RULE", id);
     }
 
-    public async Task DeleteParameterAsync(Guid id)
+    public async Task DeleteParameterAsync(Guid id, Guid adminId = default)
     {
         _context.ItemParameterSettings.Remove(
             await _context.ItemParameterSettings.FirstAsync(x => x.Id == id));
 
         await _context.SaveChangesAsync();
-        await LogAsync("DELETE_PARAMETER", id);
+        await LogAsync(adminId, "DELETE_PARAMETER", id);
     }
 
-    public async Task DeleteElementAsync(Guid id)
+    public async Task DeleteElementAsync(Guid id, Guid adminId = default)
     {
         _context.ItemElementSettings.Remove(
             await _context.ItemElementSettings.FirstAsync(x => x.Id == id));
 
         await _context.SaveChangesAsync();
-        await LogAsync("DELETE_ELEMENT", id);
+        await LogAsync(adminId, "DELETE_ELEMENT", id);
     }
 
-    public async Task DeleteWeightAsync(Guid id)
+    public async Task DeleteWeightAsync(Guid id, Guid adminId = default)
     {
         _context.ItemTypeWeights.Remove(
             await _context.ItemTypeWeights.FirstAsync(x => x.Id == id));
 
         await _context.SaveChangesAsync();
-        await LogAsync("DELETE_WEIGHT", id);
+        await LogAsync(adminId, "DELETE_WEIGHT", id);
     }
 
     #endregion
@@ -430,14 +456,14 @@ public class GenerationAdminService : IGenerationAdminService
             throw new InvalidOperationException("Weight cannot contain both weapon and armor");
     }
 
-    private async Task LogAsync(string action, Guid id)
+    private async Task LogAsync(Guid adminId, string action, Guid id)
     {
         _context.AdminLogs.Add(new AdminLog
         {
             Id = Guid.NewGuid(),
             Action = action,
             TargetUserId = id.ToString(),
-            AdminId = Guid.Empty
+            AdminId = adminId
         });
 
         await _context.SaveChangesAsync();

@@ -8,35 +8,35 @@ using LootNet_API.DTO.Generation.Response;
 
 public interface IGenerationAdminService
 {
-    Task<Guid> CreateProfileAsync(CreateGenerationProfileDTO dto);
-    Task<Guid> CreateProfileAsync(CreateGenerationProfileFullDTO dto);
+    Task<Guid> CreateProfileAsync(CreateGenerationProfileDTO dto, Guid adminId = default);
+    Task<Guid> CreateProfileAsync(CreateGenerationProfileFullDTO dto, Guid adminId = default);
 
     Task<List<GenerationProfileDTO>> GetProfilesAsync();
     Task<GenerationProfileDetailsDTO> GetProfileDetailsAsync(Guid id);
 
-    Task UpdateProfileAsync(UpdateGenerationProfileDTO dto);
-    Task DeleteProfileAsync(Guid id);
+    Task UpdateProfileAsync(UpdateGenerationProfileDTO dto, Guid adminId = default);
+    Task DeleteProfileAsync(Guid id, Guid adminId = default);
 
-    Task<Guid> CreateRuleAsync(Guid profileId, CreateRuleDTO dto);
-    Task<Guid> CreateFullRuleAsync(CreateRuleFullDTO dto);
+    Task<Guid> CreateRuleAsync(Guid profileId, CreateRuleDTO dto, Guid adminId = default);
+    Task<Guid> CreateFullRuleAsync(CreateRuleFullDTO dto, Guid adminId = default);
 
     Task<List<RuleDTO>> GetRulesAsync(Guid profileId);
 
-    Task UpdateRuleAsync(UpdateRuleDTO dto);
-    Task DeleteRuleAsync(Guid id);
+    Task UpdateRuleAsync(UpdateRuleDTO dto, Guid adminId = default);
+    Task DeleteRuleAsync(Guid id, Guid adminId = default);
 
-    Task<Guid> CreateParameterAsync(Guid ruleId, CreateParameterDTO dto);
+    Task<Guid> CreateParameterAsync(Guid ruleId, CreateParameterDTO dto, Guid adminId = default);
     Task<List<ParameterDTO>> GetParametersAsync(Guid ruleId);
-    Task UpdateParameterAsync(UpdateParameterDTO dto);
-    Task DeleteParameterAsync(Guid id);
+    Task UpdateParameterAsync(UpdateParameterDTO dto, Guid adminId = default);
+    Task DeleteParameterAsync(Guid id, Guid adminId = default);
 
-    Task<Guid> CreateElementAsync(Guid ruleId, CreateElementDTO dto);
+    Task<Guid> CreateElementAsync(Guid ruleId, CreateElementDTO dto, Guid adminId = default);
     Task<List<ElementDTO>> GetElementsAsync(Guid ruleId);
-    Task UpdateElementAsync(UpdateElementDTO dto);
-    Task DeleteElementAsync(Guid id);
+    Task UpdateElementAsync(UpdateElementDTO dto, Guid adminId = default);
+    Task DeleteElementAsync(Guid id, Guid adminId = default);
 
-    Task<Guid> CreateWeightAsync(Guid profileId, CreateTypeWeightDTO dto);
+    Task<Guid> CreateWeightAsync(Guid profileId, CreateTypeWeightDTO dto, Guid adminId = default);
     Task<List<TypeWeightDTO>> GetWeightsAsync(Guid profileId);
-    Task UpdateWeightAsync(UpdateTypeWeightDTO dto);
-    Task DeleteWeightAsync(Guid id);
+    Task UpdateWeightAsync(UpdateTypeWeightDTO dto, Guid adminId = default);
+    Task DeleteWeightAsync(Guid id, Guid adminId = default);
 }
