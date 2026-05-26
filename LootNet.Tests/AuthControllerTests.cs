@@ -36,7 +36,8 @@ public class AuthControllerTests
             {"Jwt:Audience", "TestAudience"},
             {"Jwt:AccessTokenMinutes", "60"},
             {"Jwt:RefreshTokenDays", "7"},
-            {"App:PublicBaseUrl", "https://lootnet-api.test"}
+            {"App:PublicBaseUrl", "https://lootnet-api.test"},
+            {"Development", "true"}
         };
 
         var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();

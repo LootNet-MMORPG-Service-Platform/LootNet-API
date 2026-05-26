@@ -67,7 +67,10 @@ public class AuthService : IAuthService
             Equipment = new Equipment()
         };
 
-        await _emailSender.SendEmailVerificationAsync(user.Email, user.Username, BuildVerificationUrl(verificationToken));
+        await _emailSender.SendEmailVerificationAsync(
+            user.Email,
+            user.Username,
+            BuildVerificationUrl(verificationToken, dto.VerificationClient));
 
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
@@ -225,7 +228,7 @@ public class AuthService : IAuthService
         user.EmailVerificationTokenExpiresAt = DateTime.UtcNow.Add(EmailVerificationTokenLifetime);
 
         await _context.SaveChangesAsync();
-        await _emailSender.SendEmailVerificationAsync(user.Email, user.Username, BuildVerificationUrl(verificationToken));
+        await _emailSender.SendEmailVerificationAsync(user.Email, user.Username, BuildVerificationUrl(verificationToken, EmailVerificationClient.Web));
     }
 
     public async Task<int> DeleteExpiredUnverifiedUsersAsync()
@@ -266,17 +269,30 @@ public class AuthService : IAuthService
         return profile.Id;
     }
 
-    private string BuildVerificationUrl(string token)
+    private string BuildVerificationUrl(string token, EmailVerificationClient client)
     {
+        if (client == EmailVerificationClient.Mobile)
+        {
+            var mobileBaseUrl = _config["App:MobileVerificationBaseUrl"]?.TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(mobileBaseUrl))
+                return QueryHelpers.AddQueryString(mobileBaseUrl, "token", token);
+
+            var apiBaseUrl = _config["App:PublicBaseUrl"]?.TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(apiBaseUrl))
+                throw new InvalidOperationException("Mobile email verification URL is not configured. Set App__MobileVerificationBaseUrl or App__PublicBaseUrl.");
+
+            return QueryHelpers.AddQueryString($"{apiBaseUrl}/api/auth/verify-email", "token", token);
+        }
+
         var webBaseUrl = GetWebBaseUrl();
         if (!string.IsNullOrWhiteSpace(webBaseUrl))
             return QueryHelpers.AddQueryString($"{webBaseUrl}/verify-email", "token", token);
 
-        var apiBaseUrl = _config["App:PublicBaseUrl"]?.TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(apiBaseUrl))
+        var fallbackApiBaseUrl = _config["App:PublicBaseUrl"]?.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(fallbackApiBaseUrl))
             throw new InvalidOperationException("Email verification base URL is not configured. Set App__PublicBaseUrl.");
 
-        return QueryHelpers.AddQueryString($"{apiBaseUrl}/api/auth/verify-email", "token", token);
+        return QueryHelpers.AddQueryString($"{fallbackApiBaseUrl}/api/auth/verify-email", "token", token);
     }
 
     private string BuildPasswordResetUrl(string token)

@@ -73,6 +73,7 @@ public class AuthServiceTests
             {"Jwt:RefreshTokenDays", "7"},
             {"App:PublicBaseUrl", "https://lootnet-api.test"},
             {"App:WebBaseUrl", "https://lootnet-web.test"},
+            {"App:MobileVerificationBaseUrl", "lootnet://verify-email"},
             {"Development", development.ToString()}
         }).Build();
     }
@@ -89,6 +90,20 @@ public class AuthServiceTests
         Assert.NotNull(user.EmailVerificationTokenExpiresAt);
         Assert.Equal("player1@example.com", _emailSender.LastEmail);
         Assert.Contains("/verify-email?token=", _emailSender.LastVerificationUrl);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_UsesMobileVerificationUrl_WhenMobileClientRequested()
+    {
+        await _service.RegisterAsync(new RegisterDTO
+        {
+            Username = "player1",
+            Email = "player1@example.com",
+            Password = "password",
+            VerificationClient = LootNet_API.Enums.EmailVerificationClient.Mobile
+        });
+
+        Assert.StartsWith("lootnet://verify-email?token=", _emailSender.LastVerificationUrl);
     }
 
     [Fact]

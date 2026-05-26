@@ -1,6 +1,7 @@
 namespace LootNet_API.DTO
 {
     using System.ComponentModel.DataAnnotations;
+    using LootNet_API.Enums;
 
     public class RegisterDTO
     {
@@ -17,5 +18,7 @@ namespace LootNet_API.DTO
         [Required]
         [StringLength(128)]
         public required string Password { get; set; }
+
+        public EmailVerificationClient VerificationClient { get; set; } = EmailVerificationClient.Web;
     }
 }
