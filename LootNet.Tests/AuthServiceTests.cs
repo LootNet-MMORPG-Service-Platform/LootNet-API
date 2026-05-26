@@ -132,9 +132,29 @@ public class AuthServiceTests
         await _db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<AuthForbiddenException>(() =>
-            _service.LoginAsync(new LoginDTO { Username = "player1", Password = "password" }));
+            _service.LoginAsync(new LoginDTO { Email = "player1@example.com", Password = "password" }));
 
         Assert.Equal("Email is not verified.", ex.Message);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ReturnsTokens_WhenEmailIsUsed()
+    {
+        _db.Users.Add(new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "player1",
+            Email = "player1@example.com",
+            EmailVerified = true,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("password"),
+            Equipment = new Equipment()
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.LoginAsync(new LoginDTO { Email = "PLAYER1@example.com", Password = "password" });
+
+        Assert.NotNull(result.Token);
+        Assert.NotNull(result.RefreshToken);
     }
 
     [Fact]

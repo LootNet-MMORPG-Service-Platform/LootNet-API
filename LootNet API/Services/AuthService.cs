@@ -81,7 +81,12 @@ public class AuthService : IAuthService
     {
         await DeleteExpiredUnverifiedUsersAsync();
 
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
+        var identifier = !string.IsNullOrWhiteSpace(dto.Email) ? dto.Email : dto.Username;
+        var normalizedEmail = NormalizeEmail(identifier ?? string.Empty);
+        var normalizedUsername = identifier?.Trim();
+
+        var user = await _context.Users.FirstOrDefaultAsync(u =>
+            u.Email == normalizedEmail || u.Username == normalizedUsername);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             throw new UnauthorizedAccessException("Invalid username or password.");

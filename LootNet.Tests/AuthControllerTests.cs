@@ -94,7 +94,7 @@ public class AuthControllerTests
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
-        var dto = new LoginDTO { Username = "player1", Password = "password" };
+        var dto = new LoginDTO { Email = "player1@example.com", Password = "password" };
         var result = await _controller.Login(dto);
 
         var ok = Assert.IsType<OkObjectResult>(result);
@@ -110,7 +110,7 @@ public class AuthControllerTests
         _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", Email = "player1@example.com", PasswordHash = hash, Role = UserRole.Player, Equipment = new Equipment() });
         await _db.SaveChangesAsync();
 
-        var dto = new LoginDTO { Username = "player1", Password = "password" };
+        var dto = new LoginDTO { Email = "player1@example.com", Password = "password" };
         var result = await _controller.Login(dto);
 
         var forbidden = Assert.IsType<ObjectResult>(result);
@@ -125,7 +125,7 @@ public class AuthControllerTests
         _db.Users.Add(new User { Id = Guid.NewGuid(), Username = "player1", Email = "player1@example.com", EmailVerified = true, PasswordHash = hash, Role = UserRole.Player, Equipment = new Equipment() });
         await _db.SaveChangesAsync();
 
-        var dto = new LoginDTO { Username = "player1", Password = "wrong" };
+        var dto = new LoginDTO { Email = "player1@example.com", Password = "wrong" };
         var result = await _controller.Login(dto);
 
         var unauthorized = Assert.IsType<UnauthorizedObjectResult>(result);
