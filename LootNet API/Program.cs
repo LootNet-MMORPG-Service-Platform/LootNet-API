@@ -2,6 +2,7 @@ using System.Text;
 using LootNet_API.Configuration;
 using LootNet_API.Data;
 using LootNet_API.Hubs;
+using LootNet_API.Middleware;
 using LootNet_API.Services;
 using LootNet_API.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -237,6 +238,7 @@ namespace LootNet_API
             app.UseRouting();
             app.UseCors("ConfiguredClients");
             app.UseAuthentication();
+            app.UseMiddleware<BlockedUserMiddleware>();
             app.UseRateLimiter();
             app.UseAuthorization();
 

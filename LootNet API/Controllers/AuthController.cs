@@ -106,6 +106,10 @@ public class AuthController : ControllerBase
         {
             return Unauthorized(ex.Message);
         }
+        catch (AuthForbiddenException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+        }
     }
 
     [HttpPost("logout")]

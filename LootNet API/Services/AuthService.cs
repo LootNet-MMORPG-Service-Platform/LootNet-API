@@ -118,6 +118,13 @@ public class AuthService : IAuthService
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == token.UserId);
         if (user == null) throw new UnauthorizedAccessException();
+        if (user.IsBlocked)
+        {
+            await _tokenService.RevokeRefreshTokenAsync(token);
+            var blockedUntil = user.BlockedUntil?.ToString("u") ?? "indefinitely";
+            var reason = string.IsNullOrWhiteSpace(user.BlockReason) ? "No reason provided." : user.BlockReason;
+            throw new AuthForbiddenException($"Account is blocked until {blockedUntil}. Reason: {reason}");
+        }
 
         var newJwt = _tokenService.GenerateJwt(user);
         await _tokenService.RevokeRefreshTokenAsync(token);

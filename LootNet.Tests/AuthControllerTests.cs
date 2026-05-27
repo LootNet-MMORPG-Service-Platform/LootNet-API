@@ -159,6 +159,35 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task Refresh_Fails_AndRevokesToken_WhenUserIsBlocked()
+    {
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = "player1",
+            Email = "player1@example.com",
+            EmailVerified = true,
+            PasswordHash = "hash",
+            Role = UserRole.Player,
+            IsBlocked = true,
+            BlockReason = "spam",
+            Equipment = new Equipment()
+        };
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+
+        var refresh = _tokenService.GenerateRefreshToken(user.Id);
+
+        var result = await _controller.Refresh(refresh.Token);
+
+        var forbidden = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, forbidden.StatusCode);
+        Assert.Contains("Account is blocked", forbidden.Value?.ToString());
+        var dbToken = await _db.RefreshTokens.FindAsync(refresh.Id);
+        Assert.True(dbToken!.IsRevoked);
+    }
+
+    [Fact]
     public async Task Logout_RevokesRefreshToken()
     {
         var user = new User { Id = Guid.NewGuid(), Username = "player1", Email = "player1@example.com", EmailVerified = true, PasswordHash = "hash", Role = UserRole.Player, Equipment = new Equipment() };
