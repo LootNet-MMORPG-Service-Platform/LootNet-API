@@ -694,6 +694,12 @@ namespace LootNet_API.Migrations
                     b.Property<Guid>("SellerId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("SellerPayout")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("numeric");
+
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone");
 
@@ -721,20 +727,14 @@ namespace LootNet_API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<bool>("EmailVerified")
-                        .HasColumnType("boolean");
-
                     b.Property<DateTime?>("EmailVerificationTokenExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("EmailVerificationTokenHash")
                         .HasColumnType("text");
 
-                    b.Property<DateTime?>("PasswordResetTokenExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PasswordResetTokenHash")
-                        .HasColumnType("text");
+                    b.Property<bool>("EmailVerified")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsBlocked")
                         .HasColumnType("boolean");
@@ -744,6 +744,12 @@ namespace LootNet_API.Migrations
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("PasswordResetTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PasswordResetTokenHash")
                         .HasColumnType("text");
 
                     b.Property<Guid>("ProfileId")
@@ -761,10 +767,10 @@ namespace LootNet_API.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProfileId");
-
                     b.HasIndex("Email")
                         .IsUnique();
+
+                    b.HasIndex("ProfileId");
 
                     b.HasIndex("Username")
                         .IsUnique();

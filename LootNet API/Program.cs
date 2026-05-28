@@ -18,6 +18,8 @@ namespace LootNet_API
     {
         public static void Main(string[] args)
         {
+            LoadLocalEnvironmentFallback();
+
             var builder = WebApplication.CreateBuilder(args);
             builder.WebHost.ConfigureKestrel(options =>
             {
@@ -217,11 +219,21 @@ namespace LootNet_API
                 var generator = scope.ServiceProvider.GetRequiredService<IItemGenerationService>();
 
                 db.Database.EnsureDeleted();
-                db.Database.EnsureCreated();
+                db.Database.Migrate();
 
                 DbSeeder.Seed(db, generator);
 
                 Console.WriteLine("Database seeded successfully!");
+                return;
+            }
+            if (args.Contains("--migrate"))
+            {
+                using var scope = app.Services.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                db.Database.Migrate();
+
+                Console.WriteLine("Database migrated successfully!");
                 return;
             }
 
@@ -253,6 +265,62 @@ namespace LootNet_API
             }
 
             app.Run();
+        }
+
+        private static void LoadLocalEnvironmentFallback()
+        {
+            var environmentPath = FindLocalEnvironmentFile();
+            if (environmentPath is null)
+                return;
+
+            foreach (var rawLine in File.ReadLines(environmentPath))
+            {
+                var line = rawLine.Trim();
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+                    continue;
+
+                if (line.StartsWith("export ", StringComparison.OrdinalIgnoreCase))
+                    line = line["export ".Length..].TrimStart();
+
+                var separatorIndex = line.IndexOf('=');
+                if (separatorIndex <= 0)
+                    continue;
+
+                var key = line[..separatorIndex].Trim();
+                var value = line[(separatorIndex + 1)..].Trim();
+
+                if (string.IsNullOrWhiteSpace(key) || Environment.GetEnvironmentVariable(key) is not null)
+                    continue;
+
+                Environment.SetEnvironmentVariable(key, UnquoteEnvironmentValue(value));
+            }
+        }
+
+        private static string? FindLocalEnvironmentFile()
+        {
+            var currentDirectory = Directory.GetCurrentDirectory();
+            var parentDirectory = Directory.GetParent(currentDirectory)?.FullName;
+            var candidates = new[]
+            {
+                Path.Combine(currentDirectory, ".env"),
+                Path.Combine(currentDirectory, "LootNet API", ".env"),
+                parentDirectory is null ? null : Path.Combine(parentDirectory, ".env"),
+                Path.Combine(AppContext.BaseDirectory, ".env")
+            };
+
+            return candidates.FirstOrDefault(path => path is not null && File.Exists(path));
+        }
+
+        private static string UnquoteEnvironmentValue(string value)
+        {
+            if (value.Length >= 2
+                && ((value[0] == '"' && value[^1] == '"')
+                    || (value[0] == '\'' && value[^1] == '\'')))
+            {
+                return value[1..^1];
+            }
+
+            return value;
         }
     }
 }

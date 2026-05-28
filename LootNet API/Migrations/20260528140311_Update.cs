@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,7 +7,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace LootNet_API.Migrations
 {
     /// <inheritdoc />
-    public partial class UpdateI : Migration
+    public partial class Update : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -42,6 +43,37 @@ namespace LootNet_API.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Armors", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ChatMessages",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    SenderId = table.Column<Guid>(type: "uuid", nullable: false),
+                    RecipientId = table.Column<Guid>(type: "uuid", nullable: true),
+                    Text = table.Column<string>(type: "text", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ChatMessages", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "EnemyClassProfiles",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "text", nullable: false),
+                    Class = table.Column<int>(type: "integer", nullable: false),
+                    AllowedColumns = table.Column<List<int>>(type: "integer[]", nullable: false),
+                    GenerationProfileId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Weight = table.Column<double>(type: "double precision", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_EnemyClassProfiles", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -89,6 +121,45 @@ namespace LootNet_API.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Runs",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    BattleIndex = table.Column<int>(type: "integer", nullable: false),
+                    PlayerCurrentHp = table.Column<int>(type: "integer", nullable: false),
+                    PlayerMaxHp = table.Column<int>(type: "integer", nullable: false),
+                    IsPlayerDisorganized = table.Column<bool>(type: "boolean", nullable: false),
+                    PlayerSkipNextTurn = table.Column<bool>(type: "boolean", nullable: false),
+                    PlayerPosition = table.Column<int>(type: "integer", nullable: false),
+                    LeftHandItemId = table.Column<Guid>(type: "uuid", nullable: true),
+                    RightHandItemId = table.Column<Guid>(type: "uuid", nullable: true),
+                    StartedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    FinishedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Runs", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StageProfiles",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "text", nullable: false),
+                    StageIndex = table.Column<int>(type: "integer", nullable: false),
+                    Weight = table.Column<double>(type: "double precision", nullable: false),
+                    Falloff = table.Column<double>(type: "double precision", nullable: false),
+                    Threshold = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StageProfiles", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Transactions",
                 columns: table => new
                 {
@@ -97,6 +168,8 @@ namespace LootNet_API.Migrations
                     SellerId = table.Column<Guid>(type: "uuid", nullable: false),
                     ItemId = table.Column<Guid>(type: "uuid", nullable: false),
                     Price = table.Column<int>(type: "integer", nullable: false),
+                    TaxAmount = table.Column<decimal>(type: "numeric", nullable: false),
+                    SellerPayout = table.Column<decimal>(type: "numeric", nullable: false),
                     Timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -171,6 +244,12 @@ namespace LootNet_API.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Username = table.Column<string>(type: "text", nullable: false),
+                    Email = table.Column<string>(type: "text", nullable: false),
+                    EmailVerified = table.Column<bool>(type: "boolean", nullable: false),
+                    EmailVerificationTokenHash = table.Column<string>(type: "text", nullable: true),
+                    EmailVerificationTokenExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    PasswordResetTokenHash = table.Column<string>(type: "text", nullable: true),
+                    PasswordResetTokenExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     PasswordHash = table.Column<string>(type: "text", nullable: false),
                     Role = table.Column<int>(type: "integer", nullable: false),
                     ProfileId = table.Column<Guid>(type: "uuid", nullable: false),
@@ -178,7 +257,8 @@ namespace LootNet_API.Migrations
                     Currency = table.Column<decimal>(type: "numeric", nullable: false),
                     IsBlocked = table.Column<bool>(type: "boolean", nullable: false),
                     BlockedUntil = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    BlockReason = table.Column<string>(type: "text", nullable: true)
+                    BlockReason = table.Column<string>(type: "text", nullable: true),
+                    ProfileImagePath = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -187,6 +267,44 @@ namespace LootNet_API.Migrations
                         name: "FK_Users_GenerationProfiles_ProfileId",
                         column: x => x.ProfileId,
                         principalTable: "GenerationProfiles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Battles",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    RunId = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Battles", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Battles_Runs_RunId",
+                        column: x => x.RunId,
+                        principalTable: "Runs",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StageScenarios",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    StageProfileId = table.Column<Guid>(type: "uuid", nullable: false),
+                    EnemyCount = table.Column<int>(type: "integer", nullable: false),
+                    Weight = table.Column<double>(type: "double precision", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StageScenarios", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StageScenarios_StageProfiles_StageProfileId",
+                        column: x => x.StageProfileId,
+                        principalTable: "StageProfiles",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -258,28 +376,105 @@ namespace LootNet_API.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Equipments",
+                name: "InventoryItems",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    HeadId = table.Column<Guid>(type: "uuid", nullable: true),
-                    BodyId = table.Column<Guid>(type: "uuid", nullable: true),
-                    GlovesId = table.Column<Guid>(type: "uuid", nullable: true),
-                    LegsId = table.Column<Guid>(type: "uuid", nullable: true),
-                    BootsId = table.Column<Guid>(type: "uuid", nullable: true),
-                    WeaponSlot1Id = table.Column<Guid>(type: "uuid", nullable: true),
-                    WeaponSlot2Id = table.Column<Guid>(type: "uuid", nullable: true),
-                    WeaponSlot3Id = table.Column<Guid>(type: "uuid", nullable: true),
-                    WeaponSlot4Id = table.Column<Guid>(type: "uuid", nullable: true)
+                    ItemId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Equipments", x => x.Id);
+                    table.PrimaryKey("PK_InventoryItems", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Equipments_Users_UserId",
+                        name: "FK_InventoryItems_Users_UserId",
                         column: x => x.UserId,
                         principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "MarketInventoryItems",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    ItemId = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MarketInventoryItems", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_MarketInventoryItems_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RunInventoryItems",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    ItemId = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RunInventoryItems", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RunInventoryItems_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "BattleEnemies",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    BattleId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Class = table.Column<int>(type: "integer", nullable: false),
+                    Position = table.Column<int>(type: "integer", nullable: false),
+                    CurrentHp = table.Column<int>(type: "integer", nullable: false),
+                    MaxHp = table.Column<int>(type: "integer", nullable: false),
+                    IsDisorganized = table.Column<bool>(type: "boolean", nullable: false),
+                    SkipNextTurn = table.Column<bool>(type: "boolean", nullable: false),
+                    LeftHandItemId = table.Column<Guid>(type: "uuid", nullable: true),
+                    RightHandItemId = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_BattleEnemies", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_BattleEnemies_Battles_BattleId",
+                        column: x => x.BattleId,
+                        principalTable: "Battles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ScenarioSlots",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ScenarioId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Position = table.Column<int>(type: "integer", nullable: false),
+                    ClassProfileId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Weight = table.Column<double>(type: "double precision", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ScenarioSlots", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ScenarioSlots_StageScenarios_ScenarioId",
+                        column: x => x.ScenarioId,
+                        principalTable: "StageScenarios",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -313,6 +508,50 @@ namespace LootNet_API.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "Equipments",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: true),
+                    BattleEnemyId = table.Column<Guid>(type: "uuid", nullable: true),
+                    HeadId = table.Column<Guid>(type: "uuid", nullable: true),
+                    BodyId = table.Column<Guid>(type: "uuid", nullable: true),
+                    GlovesId = table.Column<Guid>(type: "uuid", nullable: true),
+                    LegsId = table.Column<Guid>(type: "uuid", nullable: true),
+                    BootsId = table.Column<Guid>(type: "uuid", nullable: true),
+                    WeaponSlot1Id = table.Column<Guid>(type: "uuid", nullable: true),
+                    WeaponSlot2Id = table.Column<Guid>(type: "uuid", nullable: true),
+                    WeaponSlot3Id = table.Column<Guid>(type: "uuid", nullable: true),
+                    WeaponSlot4Id = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Equipments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Equipments_BattleEnemies_BattleEnemyId",
+                        column: x => x.BattleEnemyId,
+                        principalTable: "BattleEnemies",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Equipments_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BattleEnemies_BattleId",
+                table: "BattleEnemies",
+                column: "BattleId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Battles_RunId",
+                table: "Battles",
+                column: "RunId");
+
             migrationBuilder.CreateIndex(
                 name: "IX_DistributionSegments_ItemElementSettingId",
                 table: "DistributionSegments",
@@ -324,10 +563,21 @@ namespace LootNet_API.Migrations
                 column: "ItemParameterSettingId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Equipments_BattleEnemyId",
+                table: "Equipments",
+                column: "BattleEnemyId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Equipments_UserId",
                 table: "Equipments",
                 column: "UserId",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InventoryItems_UserId_ItemId",
+                table: "InventoryItems",
+                columns: new[] { "UserId", "ItemId" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_ItemElements_ArmorId",
@@ -360,6 +610,11 @@ namespace LootNet_API.Migrations
                 column: "ProfileId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_MarketInventoryItems_UserId_ItemId",
+                table: "MarketInventoryItems",
+                columns: new[] { "UserId", "ItemId" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_MarketListings_Category",
                 table: "MarketListings",
                 column: "Category");
@@ -368,6 +623,27 @@ namespace LootNet_API.Migrations
                 name: "IX_MarketListings_Price",
                 table: "MarketListings",
                 column: "Price");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RunInventoryItems_UserId_ItemId",
+                table: "RunInventoryItems",
+                columns: new[] { "UserId", "ItemId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ScenarioSlots_ScenarioId",
+                table: "ScenarioSlots",
+                column: "ScenarioId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StageScenarios_StageProfileId",
+                table: "StageScenarios",
+                column: "StageProfileId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_Email",
+                table: "Users",
+                column: "Email",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_ProfileId",
@@ -388,10 +664,19 @@ namespace LootNet_API.Migrations
                 name: "AdminLogs");
 
             migrationBuilder.DropTable(
+                name: "ChatMessages");
+
+            migrationBuilder.DropTable(
                 name: "DistributionSegments");
 
             migrationBuilder.DropTable(
+                name: "EnemyClassProfiles");
+
+            migrationBuilder.DropTable(
                 name: "Equipments");
+
+            migrationBuilder.DropTable(
+                name: "InventoryItems");
 
             migrationBuilder.DropTable(
                 name: "ItemElements");
@@ -400,10 +685,19 @@ namespace LootNet_API.Migrations
                 name: "ItemTypeWeights");
 
             migrationBuilder.DropTable(
+                name: "MarketInventoryItems");
+
+            migrationBuilder.DropTable(
                 name: "MarketListings");
 
             migrationBuilder.DropTable(
                 name: "RefreshTokens");
+
+            migrationBuilder.DropTable(
+                name: "RunInventoryItems");
+
+            migrationBuilder.DropTable(
+                name: "ScenarioSlots");
 
             migrationBuilder.DropTable(
                 name: "Transactions");
@@ -415,7 +709,7 @@ namespace LootNet_API.Migrations
                 name: "ItemParameterSettings");
 
             migrationBuilder.DropTable(
-                name: "Users");
+                name: "BattleEnemies");
 
             migrationBuilder.DropTable(
                 name: "Armors");
@@ -424,10 +718,25 @@ namespace LootNet_API.Migrations
                 name: "Weapons");
 
             migrationBuilder.DropTable(
+                name: "Users");
+
+            migrationBuilder.DropTable(
+                name: "StageScenarios");
+
+            migrationBuilder.DropTable(
                 name: "ItemGenerationRules");
 
             migrationBuilder.DropTable(
+                name: "Battles");
+
+            migrationBuilder.DropTable(
+                name: "StageProfiles");
+
+            migrationBuilder.DropTable(
                 name: "GenerationProfiles");
+
+            migrationBuilder.DropTable(
+                name: "Runs");
         }
     }
 }
