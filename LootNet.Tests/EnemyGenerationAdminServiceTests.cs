@@ -1,5 +1,7 @@
 namespace LootNet_API.Tests;
 
+using System.Security.Claims;
+using LootNet_API.Controllers;
 using LootNet_API.Data;
 using LootNet_API.DTO.EnemyGeneration.Create;
 using LootNet_API.DTO.EnemyGeneration.Update;
@@ -7,6 +9,8 @@ using LootNet_API.Enums;
 using LootNet_API.Models.GameRun.EnemyGeneration;
 using LootNet_API.Models.Items.Generation;
 using LootNet_API.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 public class EnemyGenerationAdminServiceTests
@@ -45,6 +49,10 @@ public class EnemyGenerationAdminServiceTests
         Assert.Equal(1.5, profile.Weight);
         Assert.Equal(0.2, profile.Falloff);
         Assert.Equal(3, profile.Threshold);
+
+        var log = await db.AdminLogs.SingleAsync();
+        Assert.Equal("CREATE_STAGE_PROFILE", log.Action);
+        Assert.Equal(id.ToString(), log.TargetUserId);
     }
 
     [Fact]
@@ -91,6 +99,10 @@ public class EnemyGenerationAdminServiceTests
         Assert.Equal(2, updated.Weight);
         Assert.Equal(0.7, updated.Falloff);
         Assert.Equal(9, updated.Threshold);
+
+        var log = await db.AdminLogs.SingleAsync();
+        Assert.Equal("UPDATE_STAGE_PROFILE", log.Action);
+        Assert.Equal(profile.Id.ToString(), log.TargetUserId);
     }
 
     [Fact]
@@ -106,6 +118,10 @@ public class EnemyGenerationAdminServiceTests
         await service.DeleteStageProfileAsync(profile.Id);
 
         Assert.Empty(db.StageProfiles);
+
+        var log = await db.AdminLogs.SingleAsync();
+        Assert.Equal("DELETE_STAGE_PROFILE", log.Action);
+        Assert.Equal(profile.Id.ToString(), log.TargetUserId);
     }
 
     [Fact]
@@ -141,6 +157,12 @@ public class EnemyGenerationAdminServiceTests
 
         await service.DeleteStageScenarioAsync(scenarioId);
         Assert.Empty(db.StageScenarios);
+
+        var scenarioActions = await db.AdminLogs.Select(x => x.Action).ToListAsync();
+        Assert.Equal(3, scenarioActions.Count);
+        Assert.Contains("CREATE_STAGE_SCENARIO", scenarioActions);
+        Assert.Contains("UPDATE_STAGE_SCENARIO", scenarioActions);
+        Assert.Contains("DELETE_STAGE_SCENARIO", scenarioActions);
     }
 
     [Fact]
@@ -196,6 +218,12 @@ public class EnemyGenerationAdminServiceTests
 
         await service.DeleteScenarioSlotAsync(slotId);
         Assert.Empty(db.ScenarioSlots);
+
+        var slotActions = await db.AdminLogs.Select(x => x.Action).ToListAsync();
+        Assert.Equal(3, slotActions.Count);
+        Assert.Contains("CREATE_SCENARIO_SLOT", slotActions);
+        Assert.Contains("UPDATE_SCENARIO_SLOT", slotActions);
+        Assert.Contains("DELETE_SCENARIO_SLOT", slotActions);
     }
 
     [Fact]
@@ -240,6 +268,49 @@ public class EnemyGenerationAdminServiceTests
 
         await service.DeleteEnemyClassProfileAsync(id);
         Assert.Empty(db.EnemyClassProfiles);
+
+        var classProfileActions = await db.AdminLogs.Select(x => x.Action).ToListAsync();
+        Assert.Equal(3, classProfileActions.Count);
+        Assert.Contains("CREATE_CLASS_PROFILE", classProfileActions);
+        Assert.Contains("UPDATE_CLASS_PROFILE", classProfileActions);
+        Assert.Contains("DELETE_CLASS_PROFILE", classProfileActions);
+    }
+
+    [Fact]
+    public async Task EnemyGenerationController_UpdateStageProfile_LogsCurrentAdminId()
+    {
+        using var db = CreateDb();
+        var adminId = Guid.NewGuid();
+        var profile = new StageProfile
+        {
+            Id = Guid.NewGuid(),
+            Name = "Old",
+            StageIndex = 1,
+            Weight = 1,
+            Falloff = 0,
+            Threshold = 1
+        };
+        db.StageProfiles.Add(profile);
+        await db.SaveChangesAsync();
+
+        var controller = CreateController(db, adminId);
+
+        var result = await controller.UpdateStageProfile(new UpdateStageProfileDTO
+        {
+            Id = profile.Id,
+            Name = "New",
+            StageIndex = 2,
+            Weight = 3,
+            Falloff = 0.4,
+            Threshold = 5
+        });
+
+        Assert.IsType<OkResult>(result);
+
+        var log = await db.AdminLogs.SingleAsync();
+        Assert.Equal(adminId, log.AdminId);
+        Assert.Equal("UPDATE_STAGE_PROFILE", log.Action);
+        Assert.Equal(profile.Id.ToString(), log.TargetUserId);
     }
 
     [Fact]
@@ -292,5 +363,22 @@ public class EnemyGenerationAdminServiceTests
         var service = CreateService(db);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeleteEnemyClassProfileAsync(Guid.NewGuid()));
+    }
+
+    private static EnemyGenerationAdminController CreateController(AppDbContext db, Guid adminId)
+    {
+        return new EnemyGenerationAdminController(new EnemyGenerationAdminService(db))
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, adminId.ToString())
+                    }))
+                }
+            }
+        };
     }
 }
